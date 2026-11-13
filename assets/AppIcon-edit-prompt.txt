@@ -1,0 +1,5 @@
+Tool: built-in imagegen
+Transparent background: true
+Input: assets/AppIcon-original.png
+
+Use case: background-extraction. Edit this exact supplied crayon drawing into a transparent macOS app icon cutout. Remove ONLY the outer cream/beige rounded-square paper tile outside the blue bag silhouette, including its corner background and stray flecks. Keep the entire bag silhouette intact: dark crayon outer outline, blue bag, red collar at top, yellow bell, cream/white interior and white pocket, two yellow sparkles; preserve the original colors, handmade crayon grain, contour shapes, proportions, composition and interior paper texture faithfully. The cream INSIDE the blue bag is part of the artwork and must remain opaque; only the exterior becomes truly transparent alpha. No enclosing tile, no white/beige background, no icon bezel, no shadow, no additional border, no drop shadow, no typography. Keep every part of the subject visible with a small transparent margin; output a square PNG with real transparency.

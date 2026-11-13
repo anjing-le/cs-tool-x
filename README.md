@@ -73,4 +73,4 @@ MIT License。依赖与分发说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTI
 
 连接弹窗、下拉、按钮、输入框、勾选、应用提示和数据详情沿用暖纸张/鼠尾草绿主题，键盘焦点和文本选区不跟随系统强调色；详见 [UI 约定](docs/UI.md)。
 
-本机只保留 `/Applications/cs-tool-x.app` 一个日常入口，不额外安装或固定 Dev。构建时的 `.app` 是临时产物，验证后清理；历史发布保留 ZIP。图标原件在 `assets/AppIcon.png`，执行 `python3 scripts/make-icon.py` 可重新打包 ICNS。
+本机只保留 `/Applications/cs-tool-x.app` 一个日常入口，不额外安装或固定 Dev。构建时的 `.app` 是临时产物，验证后清理；历史发布保留 ZIP。图标透明版本在 `assets/AppIcon.png`，原始附件保存在 `assets/AppIcon-original.png`，执行 `python3 scripts/make-icon.py` 可重新打包 ICNS。

@@ -15,4 +15,4 @@
 
 - 客户端自有表单、按钮、勾选、下拉、提示与详情使用 PaperControls/Theme，不重新引入系统 bezel、强调色焦点框、NSAlert 或 NSPopUpButton。Shell 的 Ink 主色从 Theme 读取。下拉须保持键盘选择、Escape/外部点击关闭，关闭连接表单时清理子菜单与监听；密码仍使用安全文本编辑语义。系统文件面板、菜单栏和 Sparkle 自带更新窗口是当前外部 UI 边界，未自绘。
 
-- 本机日常入口只保留 /Applications/cs-tool-x.app。用户已要求清理 Dev、旧 DataX 与构建备份的可运行副本；不再额外启动或固定 Dev。后续构建仅作临时产物，结束后清理多余 .app，历史发布保留 ZIP；不得删除连接配置、个人指针或发布私钥。常规 OTA 安装仍由用户确认。本次图标更换与收敛为一个正式安装已获用户授权。图标原件 assets/AppIcon.png，使用 scripts/make-icon.py 打包，不重绘原图。
+- 本机日常入口只保留 /Applications/cs-tool-x.app。用户已要求清理 Dev、旧 DataX 与构建备份的可运行副本；不再额外启动或固定 Dev。后续构建仅作临时产物，结束后清理多余 .app，历史发布保留 ZIP；不得删除连接配置、个人指针或发布私钥。常规 OTA 安装仍由用户确认。本次图标更换与收敛为一个正式安装已获用户授权。图标原始附件 assets/AppIcon-original.png；生产图标 assets/AppIcon.png 是去掉外部奶油色底块的透明图案。不得添加任何背景、圆角底板或图标 bezel，保留袋子/铃铛/口袋完整轮廓与内部白色。使用 scripts/make-icon.py 打包。
