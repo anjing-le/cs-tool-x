@@ -15,3 +15,5 @@ scripts/make-icon.py 只缩放/打包图标为 macOS 的 16–1024px 标准 ICNS
 从 0.0.5 起，构建把生产 PNG 原样复制为 Contents/Resources/DockIcon.png。AppDelegate 在主线程 applicationDidFinishLaunching 中直接从该 PNG 创建 NSImage，赋给 NSApp.applicationIconImage；不从系统 bundle 图标缓存取图、不画背景、不轮询刷新。加载失败记录日志，保留 ICNS 作为回退。
 
 这条路径作用于运行中的 Dock 图标。退出后固定项、Finder/Launchpad 使用的图标渲染另行验证，不将运行时覆盖描述成所有系统位置都已去底。
+
+0.0.5 原位更新并启动后，用户现场确认运行中的 Dock 白底已消失、只剩图案。自动化读取 Dock 区域超时，视觉验收依据是用户反馈；本机已清点仅一个正式应用与一个对应固定项。

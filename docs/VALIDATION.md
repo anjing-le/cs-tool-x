@@ -57,3 +57,11 @@ release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库
 本机只保留 /Applications/cs-tool-x.app；已检查的应用目录、项目、下载、桌面、文档中仅此一份，Spotlight 仅返回该路径，Dock 仅一个对应固定项。旧 Dev、DataX、构建备份与首次带背景的图标构建移入废纸篓。配置目录、个人指针和签名文件未纳入清理；正式路径启动显示首页。
 
 [0.0.4 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43436395557) 全部通过；构建完整性、0.0.3 → 0.0.4 的标识/公钥/feed/build、更新包与 feed 验签及篡改负例通过。已发布 [0.0.4](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.4)，原生 URLSession 匿名下载 ZIP、校验和、feed，与本地已验签原件逐字节一致，latest feed 同样匹配。未把本机直接更换图标描述成 OTA 安装验收。
+
+## 0.0.5 运行时 Dock 覆盖
+
+启动主线程从独立 DockIcon.png 读取 NSImage 并赋给 NSApp.applicationIconImage，ICNS 保留为回退。本机原位更新后首页启动正常，用户现场确认白底已消失、只剩图案。自动化读取 Dock 区域超时，视觉验收结果来自用户反馈，不由 PNG alpha 检查代替。
+
+已检查的应用/项目/下载/桌面/文档目录仅有 /Applications/cs-tool-x.app 一份对应应用，Dock 仅一个对应固定项；安装 PNG 与生产源逐字节一致。旧安装移入废纸篓，配置与个人素材未纳入更新清理。
+
+正式构建、完整性、0.0.4 → 0.0.5 标识/公钥/feed/build、更新包/feed 验签和篡改负例通过。[0.0.5](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.5) 已发布，原生 URLSession 匿名下载 ZIP/校验和/feed 与本地已验签原件一致，latest feed 同样匹配。本次基于本机构建、签名检查和用户现场验收发布；记录时 [GitHub CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43449653693) 仍在排队，尚无远端结论。实际 OTA 安装与退出后/Finder 图标未计入本次验收。
