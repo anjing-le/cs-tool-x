@@ -5,6 +5,7 @@ import ToolCore
 final class AppDelegate: NSObject, NSApplicationDelegate {
   private var workbench: WorkbenchController?
   private var keyMonitor: Any?
+  private var cursorCoordinator: CursorEventCoordinator?
   private let updater = UpdateController()
   private let engine = EngineClient(
     executable: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/cs-tool-engine"))
@@ -91,6 +92,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       }
       return event
     }
+    cursorCoordinator = CursorEventCoordinator()
     updater.start()
     NSApp.activate(ignoringOtherApps: true)
   }

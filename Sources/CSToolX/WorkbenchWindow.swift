@@ -14,6 +14,12 @@ final class WorkbenchWindow: NSWindow {
     hasShadow = true
     collectionBehavior.insert(.fullScreenPrimary)
   }
+  override func sendEvent(_ event: NSEvent) {
+    super.sendEvent(event)
+    if event.type == .cursorUpdate || event.type == .leftMouseUp {
+      WritingCursors.update(in: self, at: event.locationInWindow)
+    }
+  }
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
   override func performClose(_ sender: Any?) { if attachedSheet == nil { close() } }
@@ -37,11 +43,13 @@ final class WorkbenchWindow: NSWindow {
 }
 final class WorkbenchSurface: NSView {
   private let dragRegion = WorkbenchDragRegion()
+  private var cursorTracking: WritingCursorTracking!
   private static let texture = Bundle.main.url(forResource: "PaperTexture", withExtension: "png")
     .flatMap(NSImage.init(contentsOf:))
   override var isFlipped: Bool { true }
   override init(frame: NSRect) {
     super.init(frame: frame)
+    cursorTracking = WritingCursorTracking(view: self)
     wantsLayer = true
     layer?.cornerRadius = 12
     layer?.masksToBounds = true
@@ -59,7 +67,9 @@ final class WorkbenchSurface: NSView {
     dragRegion.frame = NSRect(x: 100, y: 0, width: max(0, bounds.width - 200), height: 28)
   }
 }
-final class WorkbenchDragRegion: NSView {
+final class WorkbenchDragRegion: NSView, WritingCursorProviding {
+  private var dragging = false
+  var writingCursorRole: WritingCursorRole { dragging ? .dragging : .drag }
   override var mouseDownCanMoveWindow: Bool { false }
   override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
   override func mouseDown(with event: NSEvent) {
@@ -70,8 +80,13 @@ final class WorkbenchDragRegion: NSView {
       window.toggleDesktopMaximize()
       return
     }
-    NSCursor.closedHand.push()
-    defer { NSCursor.pop() }
+    dragging = true
+    WritingCursors.cursor(for: .dragging).push()
+    defer {
+      dragging = false
+      NSCursor.pop()
+      WritingCursors.update(in: window, at: window.mouseLocationOutsideOfEventStream)
+    }
     window.performDrag(with: event)
   }
 }

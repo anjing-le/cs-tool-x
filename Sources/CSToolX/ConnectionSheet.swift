@@ -24,7 +24,7 @@ final class ConnectionSheet: NSWindowController {
   init(engine: EngineClient, profile: ConnectionProfile? = nil) {
     self.engine = engine
     self.profile = profile ?? ConnectionProfile()
-    let window = NSWindow(
+    let window = CursorSheetWindow(
       contentRect: NSRect(x: 0, y: 0, width: 540, height: 735), styleMask: [.titled],
       backing: .buffered, defer: false)
     window.title = "新建数据连接"

@@ -42,7 +42,8 @@ private struct ModuleCard: View {
         .contentShape(RoundedRectangle(cornerRadius: 24))
         .shadow(color: .black.opacity(hovered ? 0.12 : 0), radius: 24, x: 0, y: 10)
         .offset(y: reduceMotion ? 0 : (hovered ? -3 : 0))
-    }.buttonStyle(.plain).focused($focused).onHover { hovered = $0 }.onDisappear { hovered = false }
+    }.buttonStyle(.plain).writingCursor(.clickable).focused($focused).onHover { hovered = $0 }
+      .onDisappear { hovered = false }
       .animation(reduceMotion ? nil : .timingCurve(0.4, 0, 0.2, 1, duration: 0.28), value: hovered)
       .accessibilityLabel(name)
   }

@@ -14,7 +14,7 @@ final class RealTerminal: ObservableObject, Identifiable, LocalProcessTerminalVi
   init(server: Server) { self.server = server }
   func terminalView() -> LocalProcessTerminalView {
     if let view { return view }
-    let terminal = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 700, height: 400))
+    let terminal = CursorTerminalView(frame: NSRect(x: 0, y: 0, width: 700, height: 400))
     let gate = TerminalGate(terminal)
     self.gate = gate
     terminal.terminalDelegate = gate

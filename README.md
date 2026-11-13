@@ -65,3 +65,9 @@ SQL 第一版使用只读事务，并限制为单条查询；真实环境优先�
 暂未提供 SQL 写操作、手动事务、服务端取消、通用分页、导出、图形化 SFTP、SSH 隧道管理、自定义 CA 和 Redis Cluster/Sentinel。性能目标需要在 release 包和真实环境中测量，尚无超越其他客户端的对比结论。
 
 MIT License。依赖与分发说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
+## 本机指针主题
+
+客户端可读取 `~/Library/Application Support/cs-tool-x/Cursors/` 的本机个人主题，普通/点击图片沿用其他客户端相同的 24pt 尺寸与热点；文本、拖动、分隔线由统一自定义指针层管理。该目录在应用包外，OTA 更新会保留。开发包使用 `cs-tool-x-dev/Cursors`。
+
+现有 Old Roblox 素材说明禁止直接再分发，因此不会出现在 public 源码或更新包中。缺少本机图片时使用代码绘制的自定义替代族。系统窗口边缘不接管。开发者可将合法自备图片、cursors.json 与 NOTICE.txt 放入 ignored `.local/cursor-preview` 后运行 `python3 scripts/install-local-cursors.py`。

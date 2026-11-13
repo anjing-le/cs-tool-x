@@ -24,7 +24,8 @@ struct StudySplitHandle: NSViewRepresentable {
   }
 }
 
-final class SplitHandleView: NSView {
+final class SplitHandleView: NSView, WritingCursorProviding {
+  var writingCursorRole: WritingCursorRole { axis == .vertical ? .splitResize : .columnResize }
   var axis: StudySplitAxis = .vertical
   var primarySize: CGFloat = 0
   var resize: ((CGFloat) -> Void)?
@@ -32,7 +33,7 @@ final class SplitHandleView: NSView {
   private var startCoordinate: CGFloat = 0
   private var startSize: CGFloat = 0
   private var dragging = false
-  private var resizeCursor: NSCursor { axis == .vertical ? .resizeUpDown : .resizeLeftRight }
+  private var resizeCursor: NSCursor { WritingCursors.cursor(for: writingCursorRole) }
   private func coordinate(_ event: NSEvent) -> CGFloat {
     axis == .vertical ? -event.locationInWindow.y : event.locationInWindow.x
   }

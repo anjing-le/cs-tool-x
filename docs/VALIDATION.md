@@ -34,3 +34,8 @@ release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库
 [macOS checks](https://github.com/anjing-le/cs-tool-x/actions/runs/43390521111) 全部通过：Rust、Swift 测试/真实进程协议及开发包构建。CI 的隔离数据库大帧测试按环境跳过，本机带 fixture 的七项 Swift 检查已经通过。
 
 已发布 [0.0.1](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.1)。这证明公开资产和验签流程可用，不代表实际更新安装、第三方 Mac 启动或性能目标已经验收。
+
+
+## 0.0.2 指针更新
+
+新增独立指针回归检查，角色、尺寸、热点、缓存和生命周期均通过；与可用兄弟客户端的本机素材字节一致性已核对。正式应用与更新包验证通过，0.0.1 → 0.0.2 的标识、公钥、feed 与递增 build 一致性通过；更新包中未发现个人指针图片。详见 CURSORS.md。实际 OTA 安装仍由用户验收。

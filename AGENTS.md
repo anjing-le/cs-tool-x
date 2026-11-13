@@ -10,3 +10,5 @@
 - 数据查询模式不是 SQL 沙箱；客户端超时不等于服务端取消。保持 SSH 主机指纹校验。SFTP 控制台不能描述成已完成的图形化文件管理器。
 - Public 仓库 anjing-le/cs-tool-x，Git remote 使用 git@anjing-le:anjing-le/cs-tool-x.git。只提交源码/文档/公有资源，排除 .local、dist、私钥、真实配置、数据库 fixture 数据与个人素材。
 - 验证范围见 docs/VALIDATION.md。自动检查、模拟协议、真实环境和实际 OTA 安装分别报告；不把规划或性能目标写成已完成。真实目标、TLS、读写范围不确定时先核实，不推定破坏性授权。
+
+- 客户端指针走统一 WritingCursors：普通、按钮、文本、拖动、禁用与分隔线使用缓存自定义对象；不新增空闲轮询或全局鼠标监听。个人同款图片与 NOTICE 仅存本机 Application Support/<app>/Cursors（或 ignored .local 原件），不可进入源码、app 或 OTA。公开包使用代码绘制的替代族。系统窗口边缘交互保持 macOS 管理。

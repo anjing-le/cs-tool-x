@@ -22,5 +22,10 @@ jobs:
         env:
           CSTOOLX_ENGINE: ${{ github.workspace }}/engine/target/debug/cs-tool-engine
         run: swift test --disable-keychain
+      - name: Cursor ownership regression
+        run: |
+          mkdir -p .local
+          swiftc -parse-as-library Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift tools/cursor-regression.swift -o .local/cursor-regression
+          .local/cursor-regression
       - name: Native development bundle
         run: python3 scripts/build.py --development --configuration debug

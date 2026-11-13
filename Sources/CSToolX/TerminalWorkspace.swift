@@ -66,7 +66,7 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
     launch(executable: "/bin/zsh", args: ["-l"])
   }
   private func launch(executable: String, args: [String]) {
-    let terminal = LocalProcessTerminalView(frame: container.bounds)
+    let terminal = CursorTerminalView(frame: container.bounds)
     let gate = TerminalGate(terminal)
     self.gate = gate
     terminal.terminalDelegate = gate
