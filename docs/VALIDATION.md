@@ -12,7 +12,7 @@
 
 ## 发布检查
 
-release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库外 0600 本地文件读取，未使用钥匙串；ZIP 已用随包公钥通过 Ed25519 验证，signed appcast 验证通过，修改归档和 feed 内版本内容的负例均被拒绝。线上发布后重新下载公开 ZIP、SHA-256 和 appcast，已核对归档公钥验签、feed 验签、版本、长度与下载 URL；匿名访问 latest/download/appcast.xml 返回的内容与签名原件一致。
+release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库外 0600 本地文件读取，未使用钥匙串；ZIP 已用随包公钥通过 Ed25519 验证，signed appcast 验证通过，修改归档和 feed 内版本内容的负例均被拒绝。线上发布后重新下载公开 ZIP、SHA-256 和 appcast，已核对归档公钥验签、feed 验签、版本、长度与下载 URL；使用 macOS 原生 URLSession、不携带鉴权信息匿名访问 latest/download/appcast.xml，取得与签名原件一致的内容。当时 curl / Python TLS 请求曾握手失败，该命令行网络结果与后续原生请求成功分别记录。
 
 ## 原生界面验证
 
