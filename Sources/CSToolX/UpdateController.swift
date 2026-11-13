@@ -20,10 +20,8 @@ final class UpdateController: NSObject {
   }
   @objc func check(_ sender: Any?) {
     guard let controller else {
-      let alert = NSAlert()
-      alert.messageText = "当前构建未启用更新"
-      alert.informativeText = "开发构建不访问更新源。请使用 GitHub Release 中的完整应用。"
-      alert.runModal()
+      PaperDialog.show(
+        title: "当前构建未启用更新", text: "开发构建不访问更新源。请使用 GitHub Release 中的完整应用。", window: NSApp.keyWindow)
       return
     }
     controller.checkForUpdates(sender)

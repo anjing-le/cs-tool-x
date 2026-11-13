@@ -5,6 +5,8 @@ enum Theme {
   static let sidebar = NSColor(srgbRed: 0.975, green: 0.973, blue: 0.956, alpha: 1)
   static let ink = NSColor(srgbRed: 0.24, green: 0.26, blue: 0.24, alpha: 1)
   static let muted = NSColor(srgbRed: 0.52, green: 0.53, blue: 0.49, alpha: 1)
+  static let sage = NSColor(srgbRed: 0.37, green: 0.49, blue: 0.39, alpha: 1)
+  static let pale = NSColor(srgbRed: 0.88, green: 0.91, blue: 0.85, alpha: 1)
   static let line = NSColor(calibratedWhite: 0.84, alpha: 1)
   static func label(
     _ text: String, size: CGFloat = 12, weight: NSFont.Weight = .regular, muted: Bool = false
@@ -18,15 +20,11 @@ enum Theme {
   static func button(_ title: String, target: AnyObject?, action: Selector, primary: Bool = false)
     -> NSButton
   {
-    let button = NSButton(title: title, target: target, action: action)
-    button.bezelStyle = .rounded
-    button.controlSize = .regular
-    button.font = .systemFont(ofSize: 12)
-    if primary {
-      button.keyEquivalent = ""
-      button.bezelColor = ink
-      button.contentTintColor = paper
-    }
+    let button = PaperButton()
+    button.title = title
+    button.target = target
+    button.action = action
+    button.primary = primary
     return button
   }
   static func stack(_ views: [NSView], vertical: Bool = true, spacing: CGFloat = 12) -> NSStackView
@@ -60,16 +58,40 @@ enum Theme {
     return box
   }
   static func field(_ placeholder: String) -> NSTextField {
-    let field = NSTextField()
-    field.placeholderString = placeholder
-    field.font = .systemFont(ofSize: 12)
+    let field = PaperField()
+    field.cell = PaperFieldCell(textCell: "")
+    configure(field, placeholder: placeholder)
     return field
   }
-  static func error(_ error: Error, window: NSWindow?) {
-    let alert = NSAlert()
-    alert.messageText = "操作未完成"
-    alert.informativeText = error.localizedDescription
-    if let window { alert.beginSheetModal(for: window) } else { alert.runModal() }
+  static func secureField(_ placeholder: String) -> NSSecureTextField {
+    let field = PaperSecureField()
+    field.cell = PaperSecureCell(textCell: "")
+    configure(field, placeholder: placeholder)
+    return field
+  }
+  private static func configure(_ field: NSTextField, placeholder: String) {
+    field.placeholderString = placeholder
+    field.isAutomaticTextCompletionEnabled = false
+    field.isEditable = true
+    field.isSelectable = true
+    field.cell?.isScrollable = true
+    field.cell?.wraps = false
+    field.isBordered = false
+    field.drawsBackground = false
+    field.focusRingType = .none
+    field.font = .systemFont(ofSize: 12)
+    field.textColor = ink
+    field.heightAnchor.constraint(equalToConstant: 34).isActive = true
+  }
+  static func checkbox(_ title: String) -> NSButton {
+    let button = PaperButton()
+    button.title = title
+    button.checkbox = true
+    button.setButtonType(.switch)
+    return button
+  }
+  @MainActor static func error(_ error: Error, window: NSWindow?) {
+    PaperDialog.show(title: "操作未完成", text: error.localizedDescription, window: window)
   }
 }
 @MainActor
@@ -81,6 +103,8 @@ final class TextTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
   var onActivate: ((Int, Int) -> Void)?
   init(headers: [String] = [], widths: [CGFloat] = [], header: Bool = true) {
     super.init()
+    table.focusRingType = .none
+    scroll.focusRingType = .none
     table.delegate = self
     table.dataSource = self
     table.rowHeight = 29
@@ -104,7 +128,7 @@ final class TextTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     for column in table.tableColumns { table.removeTableColumn(column) }
     for (i, title) in headers.enumerated() {
       let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(String(i)))
-      column.title = title
+      column.headerCell = PaperTableHeader(textCell: title)
       column.width = i < widths.count ? widths[i] : 220
       column.minWidth = 60
       table.addTableColumn(column)
@@ -139,6 +163,9 @@ final class TextTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     cell.textField?.stringValue = rows[row][i]
     cell.toolTip = nil
     return cell
+  }
+  func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
+    PaperTableRow()
   }
   func tableViewSelectionDidChange(_ notification: Notification) {
     if table.selectedRow >= 0 { onSelect?(table.selectedRow) }

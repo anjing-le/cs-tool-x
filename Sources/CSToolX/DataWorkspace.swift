@@ -19,6 +19,7 @@ final class DataWorkspace: NSView {
   private var disconnectButton: NSButton!
   private var historyButton: NSButton!
   private var history: [String] = []
+  private var historyMenu: PaperMenu?
   private(set) var busy = false
   var onCatalog: ((QueryOutput) -> Void)?
   var onDisconnect: (() -> Void)?
@@ -31,7 +32,8 @@ final class DataWorkspace: NSView {
     editor = scroll.documentView as! NSTextView
     super.init(frame: .zero)
     editor.textColor = Theme.ink
-    editor.insertionPointColor = Theme.ink
+    editor.insertionPointColor = Theme.sage
+    editor.selectedTextAttributes = [.backgroundColor: Theme.pale, .foregroundColor: Theme.ink]
     editor.isRichText = false
     editor.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
     editor.textContainerInset = NSSize(width: 13, height: 12)
@@ -60,7 +62,7 @@ final class DataWorkspace: NSView {
     nextButton.isHidden = true
     let resultBar = Theme.stack(
       [Theme.label("结果", size: 12, weight: .medium), status, NSView(), nextButton], vertical: false)
-    errorLabel.textColor = .systemRed
+    errorLabel.textColor = NSColor(srgbRed: 0.65, green: 0.39, blue: 0.30, alpha: 1)
     errorLabel.maximumNumberOfLines = 2
     errorLabel.isHidden = true
     let root = Theme.stack(
@@ -182,40 +184,23 @@ final class DataWorkspace: NSView {
         return text
       }.value
       guard let window = self.window, window.attachedSheet == nil else { return }
-      let alert = NSAlert()
-      alert.messageText = output.columns[column]
-      let scroll = NSTextView.scrollableTextView()
-      scroll.frame = NSRect(x: 0, y: 0, width: 620, height: 300)
-      let field = scroll.documentView as! NSTextView
-      field.isEditable = false
-      field.isRichText = false
-      field.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-      field.string = text
-      alert.accessoryView = scroll
-      alert.addButton(withTitle: "关闭")
-      alert.beginSheetModal(for: window, completionHandler: nil)
+      PaperDialog.show(title: output.columns[column], text: text, window: window, detail: true)
     }
   }
   @objc private func showHistory() {
-    let menu = NSMenu()
-    if history.isEmpty {
-      let item = NSMenuItem(title: "本次会话暂无历史", action: nil, keyEquivalent: "")
-      item.isEnabled = false
-      menu.addItem(item)
+    historyMenu?.dismiss()
+    let titles =
+      history.isEmpty
+      ? ["本次会话暂无历史"]
+      : history.map {
+        String($0.replacingOccurrences(of: "\n", with: " ").prefix(90))
+      }
+    historyMenu = PaperMenu(titles: titles, enabled: !history.isEmpty, anchor: historyButton) {
+      [weak self] index in
+      guard let self, history.indices.contains(index) else { return }
+      editor.string = history[index]
     }
-    for (i, text) in history.enumerated() {
-      let item = NSMenuItem(
-        title: String(text.replacingOccurrences(of: "\n", with: " ").prefix(90)),
-        action: #selector(selectHistory(_:)), keyEquivalent: "")
-      item.tag = i
-      item.target = self
-      menu.addItem(item)
-    }
-    menu.popUp(
-      positioning: nil, at: NSPoint(x: 0, y: historyButton.bounds.height), in: historyButton)
-  }
-  @objc private func selectHistory(_ sender: NSMenuItem) {
-    if sender.tag < history.count { editor.string = history[sender.tag] }
+    historyMenu?.show()
   }
   @objc private func disconnect() {
     guard !busy else { return }

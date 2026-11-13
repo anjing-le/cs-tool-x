@@ -35,7 +35,7 @@ final class HitButton: NSButton {
   override func draw(_ dirtyRect: NSRect) {
     if window?.firstResponder === self {
       let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 6, yRadius: 6)
-      NSColor.keyboardFocusIndicatorColor.withAlphaComponent(0.6).setStroke()
+      Theme.sage.withAlphaComponent(0.65).setStroke()
       path.lineWidth = 2
       path.stroke()
     }
@@ -116,7 +116,7 @@ struct WorkspaceView: View {
     .padding(.top, 12)
     .foregroundStyle(Ink.main)
     .font(.system(size: 12))
-    .preferredColorScheme(.light)
+    .preferredColorScheme(.light).tint(Ink.sage)
     .overlay(alignment: .bottom) {
       if let notice = model.notice {
         Text(notice).font(.system(size: 12)).padding(.horizontal, 16).padding(.vertical, 10)

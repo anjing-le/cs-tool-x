@@ -2,7 +2,7 @@
 
 一个极简的原生 macOS 开发工作台。把连接服务器、查看数据、文件传输以及后续常用开发操作，收进同一个客户端。
 
-长期目标是逐步承接 SSH 终端、SFTP 文件工具、数据库客户端、接口调试和开发小工具的常用流程。当前是 **0.0.1 基础版本**，功能按真实使用逐步打磨，不承诺已完整替代 Xshell、Xftp 或 DataGrip。
+长期目标是逐步承接 SSH 终端、SFTP 文件工具、数据库客户端、接口调试和开发小工具的常用流程。当前是 **0.0.3 基础版本**，功能按真实使用逐步打磨，不承诺已完整替代 Xshell、Xftp 或 DataGrip。
 
 [下载最新版](https://github.com/anjing-le/cs-tool-x/releases/latest) · [项目规划](docs/PLAN.md) · [架构](docs/ARCHITECTURE.md) · [更新与发布](docs/RELEASING.md)
 
@@ -71,3 +71,5 @@ MIT License。依赖与分发说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTI
 客户端可读取 `~/Library/Application Support/cs-tool-x/Cursors/` 的本机个人主题，普通/点击图片沿用其他客户端相同的 24pt 尺寸与热点；文本、拖动、分隔线由统一自定义指针层管理。该目录在应用包外，OTA 更新会保留。开发包使用 `cs-tool-x-dev/Cursors`。
 
 现有 Old Roblox 素材说明禁止直接再分发，因此不会出现在 public 源码或更新包中。缺少本机图片时使用代码绘制的自定义替代族。系统窗口边缘不接管。开发者可将合法自备图片、cursors.json 与 NOTICE.txt 放入 ignored `.local/cursor-preview` 后运行 `python3 scripts/install-local-cursors.py`。
+
+连接弹窗、下拉、按钮、输入框、勾选、应用提示和数据详情沿用暖纸张/鼠尾草绿主题，键盘焦点和文本选区不跟随系统强调色；详见 [UI 约定](docs/UI.md)。

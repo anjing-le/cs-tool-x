@@ -12,3 +12,5 @@
 - 验证范围见 docs/VALIDATION.md。自动检查、模拟协议、真实环境和实际 OTA 安装分别报告；不把规划或性能目标写成已完成。真实目标、TLS、读写范围不确定时先核实，不推定破坏性授权。
 
 - 客户端指针走统一 WritingCursors：普通、按钮、文本、拖动、禁用与分隔线使用缓存自定义对象；不新增空闲轮询或全局鼠标监听。个人同款图片与 NOTICE 仅存本机 Application Support/<app>/Cursors（或 ignored .local 原件），不可进入源码、app 或 OTA。公开包使用代码绘制的替代族。系统窗口边缘交互保持 macOS 管理。
+
+- 客户端自有表单、按钮、勾选、下拉、提示与详情使用 PaperControls/Theme，不重新引入系统 bezel、强调色焦点框、NSAlert 或 NSPopUpButton。Shell 的 Ink 主色从 Theme 读取。下拉须保持键盘选择、Escape/外部点击关闭，关闭连接表单时清理子菜单与监听；密码仍使用安全文本编辑语义。系统文件面板、菜单栏和 Sparkle 自带更新窗口是当前外部 UI 边界，未自绘。

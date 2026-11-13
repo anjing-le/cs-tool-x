@@ -192,7 +192,8 @@ extension View {
   }
 }
 
-final class CursorSheetWindow: NSWindow {
+class CursorSheetWindow: NSWindow {
+  override var canBecomeKey: Bool { true }
   override func sendEvent(_ event: NSEvent) {
     super.sendEvent(event)
     if event.type == .cursorUpdate || event.type == .leftMouseUp {

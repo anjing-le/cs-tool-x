@@ -3,11 +3,11 @@ import SwiftUI
 import ToolCore
 
 enum Ink {
-  static let background = Color(red: 0.99, green: 0.987, blue: 0.975)
-  static let main = Color(red: 0.24, green: 0.26, blue: 0.24)
-  static let muted = Color(red: 0.52, green: 0.53, blue: 0.49)
-  static let sage = Color(red: 0.37, green: 0.49, blue: 0.39)
-  static let pale = Color(red: 0.88, green: 0.91, blue: 0.85)
+  static let background = Color(nsColor: Theme.paper)
+  static let main = Color(nsColor: Theme.ink)
+  static let muted = Color(nsColor: Theme.muted)
+  static let sage = Color(nsColor: Theme.sage)
+  static let pale = Color(nsColor: Theme.pale)
   static let blue = Color(red: 0.39, green: 0.53, blue: 0.64)
   static let peach = Color(red: 0.74, green: 0.48, blue: 0.35)
   static let line = Color(red: 0.42, green: 0.43, blue: 0.36).opacity(0.17)
