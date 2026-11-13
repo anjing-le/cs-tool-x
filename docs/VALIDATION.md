@@ -12,7 +12,7 @@
 
 ## 发布检查
 
-release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库外 0600 本地文件读取，未使用钥匙串；ZIP 已用随包公钥通过 Ed25519 验证，signed appcast 验证通过，修改归档和 feed 内版本内容的负例均被拒绝。线上下载验证在发布后单独记录。
+release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库外 0600 本地文件读取，未使用钥匙串；ZIP 已用随包公钥通过 Ed25519 验证，signed appcast 验证通过，修改归档和 feed 内版本内容的负例均被拒绝。线上发布后重新下载公开 ZIP、SHA-256 和 appcast，已核对归档公钥验签、feed 验签、版本、长度与下载 URL；匿名访问 latest/download/appcast.xml 返回的内容与签名原件一致。
 
 ## 原生界面验证
 
@@ -27,3 +27,10 @@ release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库
 真实业务地址、TLS/CA、VPN、数据库版本与权限、真实 ES、SSH 远程交互与 SFTP 文件收发、完整 OTA 下载/确认安装/重启，以及其他 Mac 的首次下载启动。
 
 尚无 release 冷启动、空闲内存、交互 p95 或与传统客户端同条件对比的性能结论。验收目标见 PLAN，不把目标当作测得结果。
+
+
+## GitHub 干净环境
+
+[macOS checks](https://github.com/anjing-le/cs-tool-x/actions/runs/43390521111) 全部通过：Rust、Swift 测试/真实进程协议及开发包构建。CI 的隔离数据库大帧测试按环境跳过，本机带 fixture 的七项 Swift 检查已经通过。
+
+已发布 [0.0.1](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.1)。这证明公开资产和验签流程可用，不代表实际更新安装、第三方 Mac 启动或性能目标已经验收。
