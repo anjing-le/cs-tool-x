@@ -11,6 +11,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     executable: Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/cs-tool-engine"))
   func applicationDidFinishLaunching(_ notification: Notification) {
     NSApp.appearance = NSAppearance(named: .aqua)
+    // Load raw alpha artwork for the running Dock tile; bundle ICNS stays the fallback.
+    if let url = Bundle.main.url(forResource: "DockIcon", withExtension: "png"),
+      let image = NSImage(contentsOf: url)
+    {
+      NSApp.applicationIconImage = image
+    } else {
+      NSLog("DockIcon.png unavailable; using the bundle icon.")
+    }
     let menu = NSMenu()
     let appItem = NSMenuItem()
     menu.addItem(appItem)

@@ -50,6 +50,8 @@ def main():
     for bundle in bin_dir.glob('SwiftTerm_*.bundle'): shutil.copytree(bundle,contents/'Resources'/bundle.name)
     for resource in (ROOT/'Resources').iterdir():
         if resource.is_file(): shutil.copy2(resource,contents/'Resources'/resource.name)
+    # Keep the raw PNG alpha for NSApplication.applicationIconImage at launch.
+    shutil.copy2(ROOT/'assets/AppIcon.png',contents/'Resources/DockIcon.png')
     bundle_id=BUNDLE+'.dev' if args.development else BUNDLE
     info={'CFBundleName':'cs-tool-x','CFBundleDisplayName':'cs-tool-x Dev' if args.development else 'cs-tool-x','CFBundleIdentifier':bundle_id,
           'CFBundleExecutable':'CSToolX','CFBundlePackageType':'APPL','CFBundleIconFile':'AppIcon.icns','CFBundleShortVersionString':version,'CFBundleVersion':build,
