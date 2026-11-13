@@ -49,3 +49,11 @@ release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库
 正式包构建、指针回归、0.0.2 → 0.0.3 标识/公钥/feed/build 兼容检查、归档/feed 签名与篡改负例通过，归档未包含个人指针图片。[0.0.3 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43396532370) 全部通过。
 
 已发布 [0.0.3](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.3)。公开 ZIP 与 SHA-256 通过 gh 下载；命令行 feed 下载及一次重试遇到 EOF，改用不带鉴权的原生 URLSession 取得 feed，并确认与签名原件字节一致。对这三份实际下载文件再次核对校验和、版本、长度、URL、归档公钥验签与 feed 验签，全部通过。实际 OTA 安装仍待用户验收。
+
+## 0.0.4 透明图标与单一安装
+
+完整图案外围去除奶油色底块并设为透明，保留袋子、铃铛与内部口袋。原始附件另存，内置 imagegen 的编辑提示词与派生关系见 [ICON.md](ICON.md)。已从实际安装 ICNS 解包检查全部 10 个尺寸，外围 alpha=0、内部不透明；正式应用与签名 ZIP 中的图标资源一致。
+
+本机只保留 /Applications/cs-tool-x.app；已检查的应用目录、项目、下载、桌面、文档中仅此一份，Spotlight 仅返回该路径，Dock 仅一个对应固定项。旧 Dev、DataX、构建备份与首次带背景的图标构建移入废纸篓。配置目录、个人指针和签名文件未纳入清理；正式路径启动显示首页。
+
+[0.0.4 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43436395557) 全部通过；构建完整性、0.0.3 → 0.0.4 的标识/公钥/feed/build、更新包与 feed 验签及篡改负例通过。已发布 [0.0.4](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.4)，原生 URLSession 匿名下载 ZIP、校验和、feed，与本地已验签原件逐字节一致，latest feed 同样匹配。未把本机直接更换图标描述成 OTA 安装验收。
