@@ -1,0 +1,77 @@
+import AppKit
+
+/// The same borderless native window pattern used by FinanceX / EnglishX.
+final class WorkbenchWindow: NSWindow {
+  private var restoredFrame: NSRect?
+  init(contentRect: NSRect) {
+    super.init(
+      contentRect: contentRect, styleMask: [.borderless, .closable, .miniaturizable, .resizable],
+      backing: .buffered, defer: false)
+    title = "cs-tool-x"
+    isReleasedWhenClosed = false
+    isOpaque = false
+    backgroundColor = .clear
+    hasShadow = true
+    collectionBehavior.insert(.fullScreenPrimary)
+  }
+  override var canBecomeKey: Bool { true }
+  override var canBecomeMain: Bool { true }
+  override func performClose(_ sender: Any?) { if attachedSheet == nil { close() } }
+  override func performMiniaturize(_ sender: Any?) { miniaturize(sender) }
+  func toggleDesktopMaximize() {
+    guard !styleMask.contains(.fullScreen), let visible = screen?.visibleFrame else { return }
+    if let previous = restoredFrame, frame == visible {
+      let width = min(previous.width, visible.width)
+      let height = min(previous.height, visible.height)
+      let restored = NSRect(
+        x: min(max(previous.minX, visible.minX), visible.maxX - width),
+        y: min(max(previous.minY, visible.minY), visible.maxY - height), width: width,
+        height: height)
+      setFrame(restored, display: true)
+      restoredFrame = nil
+    } else {
+      restoredFrame = frame
+      setFrame(visible, display: true)
+    }
+  }
+}
+final class WorkbenchSurface: NSView {
+  private let dragRegion = WorkbenchDragRegion()
+  private static let texture = Bundle.main.url(forResource: "PaperTexture", withExtension: "png")
+    .flatMap(NSImage.init(contentsOf:))
+  override var isFlipped: Bool { true }
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    wantsLayer = true
+    layer?.cornerRadius = 12
+    layer?.masksToBounds = true
+    layer?.backgroundColor = Theme.paper.cgColor
+  }
+  required init?(coder: NSCoder) { nil }
+  override func draw(_ dirtyRect: NSRect) {
+    Theme.paper.setFill()
+    bounds.fill()
+    Self.texture?.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 0.24)
+  }
+  func installDragRegion() { addSubview(dragRegion, positioned: .above, relativeTo: nil) }
+  override func layout() {
+    super.layout()
+    dragRegion.frame = NSRect(x: 100, y: 0, width: max(0, bounds.width - 200), height: 28)
+  }
+}
+final class WorkbenchDragRegion: NSView {
+  override var mouseDownCanMoveWindow: Bool { false }
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+  override func mouseDown(with event: NSEvent) {
+    guard let window = window as? WorkbenchWindow, !window.styleMask.contains(.fullScreen) else {
+      return
+    }
+    if event.clickCount == 2 {
+      window.toggleDesktopMaximize()
+      return
+    }
+    NSCursor.closedHand.push()
+    defer { NSCursor.pop() }
+    window.performDrag(with: event)
+  }
+}

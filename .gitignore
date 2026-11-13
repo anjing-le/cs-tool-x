@@ -1,0 +1,17 @@
+.build/
+.swiftpm/
+engine/target/
+dist/
+releases/
+.local/
+.env
+.env.*
+*.log
+.DS_Store
+*.p12
+*.pfx
+*.key
+*.keychain*
+node_modules/
+
+__pycache__/

@@ -1,0 +1,26 @@
+name: macOS checks
+on:
+  push:
+    paths-ignore: ["**/*.md"]
+  pull_request:
+    paths-ignore: ["**/*.md"]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.93.1
+      - name: Rust engine
+        run: |
+          cargo test --locked --manifest-path engine/Cargo.toml
+          cargo build --locked --manifest-path engine/Cargo.toml
+      - name: Native tests and worker protocol
+        env:
+          CSTOOLX_ENGINE: ${{ github.workspace }}/engine/target/debug/cs-tool-engine
+        run: swift test --disable-keychain
+      - name: Native development bundle
+        run: python3 scripts/build.py --development --configuration debug
