@@ -41,3 +41,11 @@ release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库
 新增独立指针回归检查，角色、尺寸、热点、缓存和生命周期均通过；与可用兄弟客户端的本机素材字节一致性已核对。正式应用与更新包验证通过，0.0.1 → 0.0.2 的标识、公钥、feed 与递增 build 一致性通过；更新包中未发现个人指针图片。详见 CURSORS.md。实际 OTA 安装仍由用户验收。
 
 [0.0.2 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43394185954) 已通过，包括独立指针回归。原生界面复核了首页跳转、Shell 搜索/标签/分屏、连接弹窗密码输入与取消，没有连接真实远端。公开发布后重新下载 ZIP、校验和与 feed，签名、版本、长度和 URL 验证通过；原生 URLSession 匿名取得的 latest feed 与 0.0.2 签名原件一致。一次 gh 下载请求遇到 EOF，重试成功。已发布 [0.0.2](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.2)。
+
+## 0.0.3 主题控件
+
+连接弹窗、按钮、勾选、普通/安全字段、下拉、错误/提示与单元格详情改用主题控件，表头和选区同步主题色，Shell 主色引用同一 Theme。原生 UI 验证范围与剩余框架界面见 [UI.md](UI.md)。本轮没有新增真实业务连接或查询验收。
+
+正式包构建、指针回归、0.0.2 → 0.0.3 标识/公钥/feed/build 兼容检查、归档/feed 签名与篡改负例通过，归档未包含个人指针图片。[0.0.3 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43396532370) 全部通过。
+
+已发布 [0.0.3](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.3)。公开 ZIP 与 SHA-256 通过 gh 下载；命令行 feed 下载及一次重试遇到 EOF，改用不带鉴权的原生 URLSession 取得 feed，并确认与签名原件字节一致。对这三份实际下载文件再次核对校验和、版本、长度、URL、归档公钥验签与 feed 验签，全部通过。实际 OTA 安装仍待用户验收。
