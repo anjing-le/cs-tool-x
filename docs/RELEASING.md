@@ -20,11 +20,7 @@ swift tools/generate-update-key.swift \
 
 ## 构建与准备
 
-开发包 `.dev`，配置隔离并关闭 OTA：
-
-```sh
-python3 scripts/build.py --development
-```
+本机日常只保留 `/Applications/cs-tool-x.app`；纯编译用 `swift build --disable-keychain`。CI 仍可在隔离 runner 生成 `.dev` 验证包，本机不额外安装/启动 Dev。临时包验证完移走或清理，历史版本保留 ZIP，避免 Spotlight/Dock 出现多个入口。
 
 正式版本先更新 `version.json`，再构建和准备：
 

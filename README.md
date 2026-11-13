@@ -2,7 +2,7 @@
 
 一个极简的原生 macOS 开发工作台。把连接服务器、查看数据、文件传输以及后续常用开发操作，收进同一个客户端。
 
-长期目标是逐步承接 SSH 终端、SFTP 文件工具、数据库客户端、接口调试和开发小工具的常用流程。当前是 **0.0.3 基础版本**，功能按真实使用逐步打磨，不承诺已完整替代 Xshell、Xftp 或 DataGrip。
+长期目标是逐步承接 SSH 终端、SFTP 文件工具、数据库客户端、接口调试和开发小工具的常用流程。当前是 **0.0.4 基础版本**，功能按真实使用逐步打磨，不承诺已完整替代 Xshell、Xftp 或 DataGrip。
 
 [下载最新版](https://github.com/anjing-le/cs-tool-x/releases/latest) · [项目规划](docs/PLAN.md) · [架构](docs/ARCHITECTURE.md) · [更新与发布](docs/RELEASING.md)
 
@@ -34,8 +34,7 @@
 
 ```sh
 swift package --disable-keychain resolve
-python3 scripts/build.py --development
-open "dist/cs-tool-x Dev.app"
+swift build --disable-keychain --product CSToolX
 ```
 
 开发包使用独立 `.dev` 标识与配置空间，关闭 OTA。正式发布需要仓库外的更新私钥文件，具体见发布文档；缺失时停止发布。
@@ -73,3 +72,5 @@ MIT License。依赖与分发说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTI
 现有 Old Roblox 素材说明禁止直接再分发，因此不会出现在 public 源码或更新包中。缺少本机图片时使用代码绘制的自定义替代族。系统窗口边缘不接管。开发者可将合法自备图片、cursors.json 与 NOTICE.txt 放入 ignored `.local/cursor-preview` 后运行 `python3 scripts/install-local-cursors.py`。
 
 连接弹窗、下拉、按钮、输入框、勾选、应用提示和数据详情沿用暖纸张/鼠尾草绿主题，键盘焦点和文本选区不跟随系统强调色；详见 [UI 约定](docs/UI.md)。
+
+本机只保留 `/Applications/cs-tool-x.app` 一个日常入口，不额外安装或固定 Dev。构建时的 `.app` 是临时产物，验证后清理；历史发布保留 ZIP。图标原件在 `assets/AppIcon.png`，执行 `python3 scripts/make-icon.py` 可重新打包 ICNS。
