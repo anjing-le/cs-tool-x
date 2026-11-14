@@ -44,9 +44,26 @@ def verify(binary):
         detail=call(['git','show',str(one),refs['head']]);assert detail['files'][0]['path']=='browser.swift'
         call(['git','show',str(one),'--not-a-hash'],2)
         call(['git','log',str(one),'--limit','201'],2)
+        call(['git','log',str(one),'--days','3'],2)
         assert call(['git','log',str(one),'--branch','refs/heads/does-not-exist'],5)['code']=='operation_failed'
         assert before==manifest(),'Git browser changed repository contents'
-        print('PASS: Git CLI discovery, refs, paginated graph data, branch/text filtering, merge details, invalid inputs and unchanged repositories')
+        # A missing object in a partial clone must not launch a lazy-fetch transport helper.
+        helper=Path(temporary)/'transport-helper'
+        helper.write_text('#!/bin/sh\nprintf attempted > "$0.marker"\nexit 1\n');helper.chmod(0o700)
+        marker=helper.with_name(helper.name+'.marker')
+        env={k:v for k,v in os.environ.items() if not k.startswith('GIT_')}
+        env.update(GIT_CONFIG_GLOBAL='/dev/null',GIT_CONFIG_NOSYSTEM='1')
+        for key,value in [('remote.origin.url','ext::'+str(helper)),('remote.origin.promisor','true'),('protocol.ext.allow','always')]:
+            subprocess.run(['/usr/bin/git','-C',str(one),'config',key,value],env=env,check=True)
+        missing='f'*40
+        control=subprocess.run(['/usr/bin/git','-C',str(one),'cat-file','-p',missing],env=env,capture_output=True,timeout=10)
+        assert control.returncode and marker.exists(),'Fixture must prove an unguarded read can invoke the fetch helper'
+        marker.unlink()
+        partial_before=manifest()
+        call(['git','show',str(one),missing],5)
+        assert not marker.exists(),'Git browser started a lazy-fetch helper'
+        assert partial_before==manifest(),'Missing-object read changed repository contents'
+        print('PASS: Git CLI discovery, refs, paginated graph data, branch/text filtering, merge details, invalid inputs unchanged repositories and blocked lazy fetch')
 
 if __name__=='__main__':
     parser=argparse.ArgumentParser();parser.add_argument('--binary',type=Path);parser.add_argument('--write-fixture',type=Path);args=parser.parse_args()

@@ -200,6 +200,8 @@ public enum GitBrowser {
     try Task.checkCancellation()
     guard path.utf8.count <= 16_384, !path.contains("\0") else { throw ConfigurationError.invalid }
     var environment = ProcessInfo.processInfo.environment.filter { !$0.key.hasPrefix("GIT_") }
+    environment["GIT_NO_LAZY_FETCH"] = "1"
+    environment["GIT_ALLOW_PROTOCOL"] = ""
     environment["GIT_OPTIONAL_LOCKS"] = "0"
     environment["GIT_TERMINAL_PROMPT"] = "0"
     environment["GIT_CONFIG_NOSYSTEM"] = "1"

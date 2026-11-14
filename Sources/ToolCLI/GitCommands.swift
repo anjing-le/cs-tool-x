@@ -31,7 +31,9 @@ struct GitCommands: AsyncParsableCommand {
       filter.text = search
       filter.author = author
       filter.days = days
-      try filter.validate()
+      do { try filter.validate() } catch {
+        throw CLIProblem.input("Invalid Git filters or input limits.")
+      }
       guard offset >= 0 && offset < GitBrowser.maxLoadedCommits, (1...200).contains(limit) else {
         throw CLIProblem.input("Invalid Git page bounds.")
       }
