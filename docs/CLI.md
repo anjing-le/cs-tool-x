@@ -14,9 +14,9 @@ cs-tool-x servers list
 cs-tool-x profiles list
 ```
 
-没有源码时可直接用完整路径调用，或运行 `mkdir -p ~/.local/bin` 后用 `ln -s /Applications/cs-tool-x.app/Contents/MacOS/cs-tool-x ~/.local/bin/cs-tool-x` 创建命令入口；`ln` 默认拒绝覆盖已有文件。
+没有源码时可直接用完整路径调用，或取得仓库中的 `scripts/install-cli.py` 安装命令入口。0.0.7 不建议手工创建直接指向二进制的符号链接：通过 PATH 启动时 argv[0] 可能只有命令名，导致其密码助手找错程序路径。安装脚本生成的小脚本会 `exec` 应用包内的绝对路径，旧版同目标链接会自动替换。
 
-安装脚本只在 `~/.local/bin` 创建指向现有应用的符号链接，拒绝覆盖其他命令；以后 OTA 替换同一路径的应用，链接继续有效。若目录不在 PATH，脚本提示手动添加。无需第二个客户端。未安装命令时也可直接执行 `/Applications/cs-tool-x.app/Contents/MacOS/cs-tool-x`。
+安装脚本只在 `~/.local/bin` 创建一个小型命令入口，拒绝覆盖其他命令；以后 OTA 替换同一路径的应用，入口继续有效。若目录不在 PATH，脚本提示手动添加。无需第二个客户端。未安装命令时也可直接执行 `/Applications/cs-tool-x.app/Contents/MacOS/cs-tool-x`。
 
 开发时：
 

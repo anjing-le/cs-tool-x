@@ -28,6 +28,7 @@ jobs:
         run: |
           swift build --disable-keychain --force-resolved-versions --product cs-tool-x
           python3 tools/cli-regression.py --binary "$(swift build --disable-keychain --force-resolved-versions --show-bin-path)/cs-tool-x"
+          python3 tools/cli-installer-regression.py
       - name: Cursor ownership regression
         run: |
           mkdir -p .local

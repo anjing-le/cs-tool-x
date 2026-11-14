@@ -93,3 +93,15 @@ release 构建完整性、0.0.6 → 0.0.7 标识/公钥/feed/build 兼容、归�
 [0.0.7 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43562048439) 全部通过，包括 CLI 协议/并发回归与开发包构建。[0.0.7](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.7) 已正式发布；首次发布请求因 EOF 未成功，核对仍为草稿后重试成功。公开下载初次命中不可用响应，加入唯一查询参数后用原生 URLSession 匿名取得 ZIP/校验和/feed，与本地已验签文件逐字节一致，latest feed 匹配。
 
 临时 0.0.7 构建已移入废纸篓；递归检查时额外发现 `engine/target/release/bundle/macos/Anjing DataX.app` 旧原型，确认标识 cc.anjing.datax、未运行后按既有单一客户端授权移入废纸篓。正式安装仍为 /Applications/cs-tool-x.app 0.0.6，等待用户确认 OTA 更新；未删除配置或历史 ZIP。
+
+## 0.0.7 本机命令入口与安装后验证
+
+用户明确要求直接更新与配置入口。本轮开始检查时，正式路径及运行中“关于”已经显示 0.0.7（7）；已安装 GUI、CLI、引擎、Info.plist 与 DockIcon.png 均与前轮已验签 ZIP 字节一致，codesign 严格检查通过，因此未重复替换应用或重新构建。
+
+安装后实测发现：直接用符号链接经 PATH 启动 0.0.7，argv[0] 可能是裸命令名，其密码助手程序路径被解析到当前工作目录，SSH 退出 255。修复安装入口为 `~/.local/bin/cs-tool-x` 小脚本，exec 同一应用包内的绝对路径；不修改已签名发布包。更新安装脚本自动识别并替换原同目标链接，拒绝覆盖其他命令，后续同路径 OTA 仍可复用。
+
+修复后通过 PATH 执行 schema、doctor、服务器/数据库配置列表、真实 SSH 只读标记与 SFTP 列目录成功，无截断。已安装 CLI 的完整隔离回归通过；新增入口回归覆盖含空格/单引号的应用路径、参数逐字传递、重复安装、旧符号链接迁移和无关命令拒绝。数据库实际配置为空，数据查询仅沿用模拟引擎回归结果，没有新增真实数据库 CLI 验收。
+
+CLI 临时新增 fixture.invalid 配置后重启 GUI，可见该条目；通过 revision 删除后再次重启，仅保留原服务器。原服务器/分组/密码的 JSON 值完全一致，未尝试连接测试主机。UI 工具切换前台未能提供可靠的重新激活证据，因此这里只确认重启读取共享配置，不声称热重载验收。当前保持正式客户端打开且没有会话。
+
+已递归检查 /Applications、用户 Applications、project、Documents、Downloads、Desktop，匹配正式/Dev/DataX Bundle ID 的应用仅 /Applications/cs-tool-x.app。Dock 中一个对应固定项，运行中一个 GUI 进程，无遗留随包数据 worker。当前交互 shell 能找到 ~/.local/bin/cs-tool-x；未修改 shell 启动文件。
