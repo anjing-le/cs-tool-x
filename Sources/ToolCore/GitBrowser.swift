@@ -134,14 +134,20 @@ public enum GitBrowser {
     var limited = false
     let started = ProcessInfo.processInfo.systemUptime
     var lastProgress = -Double.infinity
-    func add(_ url: URL, bare: Bool) {
-      guard let path = try? canonicalPath(url.path), seen.insert(path).inserted else { return }
-      locations.append(GitLocation(path: path, name: url.lastPathComponent, bare: bare))
+    var lastPublishedCount = 0
+    func publishProgress() {
+      guard progress != nil, locations.count != lastPublishedCount else { return }
       let now = ProcessInfo.processInfo.systemUptime
       if now - lastProgress >= 0.1 {
         lastProgress = now
+        lastPublishedCount = locations.count
         progress?(locations)
       }
+    }
+    func add(_ url: URL, bare: Bool) {
+      guard let path = try? canonicalPath(url.path), seen.insert(path).inserted else { return }
+      locations.append(GitLocation(path: path, name: url.lastPathComponent, bare: bare))
+      publishProgress()
     }
     func inspect(_ url: URL) {
       let dot = url.appendingPathComponent(".git")
@@ -176,7 +182,10 @@ public enum GitBrowser {
       }
       while let url = enumerator.nextObject() as? URL {
         visited += 1
-        if visited % 128 == 0 { try Task.checkCancellation() }
+        if visited % 128 == 0 {
+          try Task.checkCancellation()
+          publishProgress()
+        }
         if visited >= maxScanEntries || locations.count >= maxRepositories
           || ProcessInfo.processInfo.systemUptime - started >= 20
         {
@@ -196,6 +205,7 @@ public enum GitBrowser {
         }
         queue.append(url)
       }
+      publishProgress()
       if next >= 4096 {
         queue.removeFirst(next)
         next = 0
