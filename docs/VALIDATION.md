@@ -158,3 +158,5 @@ debug 与正式包 CLI 回归通过；正式包新引擎对四个已选目标完
 部分克隆缺对象回归使用隔离的本机 transport helper：未保护的对照读取确实触发 helper，客户端读取拒绝触发 helper，仓库文件哈希仍不变。禁用惰性 fetch 与传输协议，缺对象显示失败；无真实远端访问。
 
 [0.0.11 最终 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43604725174) 全部通过；[正式发布](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.11) 标签指向最终提交 547f34f。公开 ZIP、校验和与签名 feed 字节匹配本地已验签文件，latest feed 指向 0.0.11。旧 0.0.10 → 0.0.11 的标识、公钥、feed、递增版本与 build 检查通过，归档/feed 篡改拒绝。临时 .app 和 UI 测试仓库已移入废纸篓，未启动第二个客户端。等待用户在原客户端完成 OTA，未将构建/发布等同于安装验收。
+
+用户确认 OTA 更新并重启后，正式安装核对为 0.0.11（11）。GUI/CLI/引擎二进制、Info.plist 和透明 Dock PNG 均与已验签 ZIP 字节一致，codesign 严格检查通过。PATH 入口 doctor 返回新版本；安装后的 Git schema、当前真实仓库的 main/HEAD、历史与详情查询，以及隔离 Git CLI 全量回归通过（含缺对象不触发 lazy-fetch）。本机四个数据配置、一个 SSH 服务器及 69 条原始归档保留，凭据权限正常。已检查目录只一个正式客户端，Dock 固定项和 GUI 进程各一个。窗口交互仍未自动验收；已完成的是离屏布局检查、正式包及 CLI 实测。
