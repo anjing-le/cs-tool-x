@@ -23,7 +23,7 @@ final class ConnectionSheet: NSWindowController {
   var onConnected: ((ConnectionProfile, String, Int, Bool, ConnectionCredentials) -> Void)?
   init(
     engine: EngineClient, profile: ConnectionProfile? = nil,
-    credentials: ConnectionCredentials? = nil
+    credentials: ConnectionCredentials? = nil, saveByDefault: Bool = true
   ) {
     self.engine = engine
     self.profile = profile ?? ConnectionProfile()
@@ -49,7 +49,7 @@ final class ConnectionSheet: NSWindowController {
     environment.selectItem(withTitle: self.profile.environment)
     passwordField.placeholderString = "仅在本次会话保留"
     apiKeyField.placeholderString = "ES API Key，可选，优先于密码"
-    saveProfile.state = .on
+    saveProfile.state = saveByDefault ? .on : .off
     cancel = Theme.button("取消", target: self, action: #selector(closeSheet))
     cancel.keyEquivalent = "\u{1b}"
     submit = Theme.button("测试并连接", target: self, action: #selector(connect), primary: true)

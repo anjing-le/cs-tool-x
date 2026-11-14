@@ -24,14 +24,18 @@ import ToolCore
     precondition(nav.roots.count == 2 && table.numberOfRows == 2, "Collapsed connection roots")
     let root = nav.roots[0]
     func key(_ code: UInt16) {
-      table.keyDown(with: NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
-        windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: code)!)
+      table.keyDown(
+        with: NSEvent.keyEvent(
+          with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+          windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "",
+          isARepeat: false, keyCode: code)!)
     }
     table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
     key(124)
     precondition(table.numberOfRows == 4, "Right arrow expands selected connection")
     key(36)
-    precondition(table.numberOfRows == 2, "Enter on a connection toggles expansion without a network action")
+    precondition(
+      table.numberOfRows == 2, "Enter on a connection toggles expansion without a network action")
     nav.expand(root)
     precondition(
       table.numberOfRows == 4 && root.children.count == 2, "Database children under one connection")
@@ -54,10 +58,22 @@ import ToolCore
       let view = nav.tableView(table, viewFor: table.tableColumns[0], row: row)
       precondition(view != nil, "Theme-backed reusable row creation")
     }
+    nav.filterConnection(root.id)
+    precondition(
+      table.numberOfRows == 5, "Connection picker filters the tree without dropping cached roots")
+    nav.filterConnection(nil)
+    precondition(table.numberOfRows == 6 && nav.roots.count == 2)
     nav.update(ConnectionGroup.build(profiles))
     precondition(
       nav.root(root.id) === root && table.numberOfRows == 6,
       "Unchanged refresh preserves expanded objects")
+    var added = first
+    added.id = UUID()
+    added.database = "three"
+    nav.update(ConnectionGroup.build(profiles + [added]))
+    precondition(
+      nav.root(root.id) === root && nav.isCurrent(leaf),
+      "Connecting another database preserves loaded sibling schemas and expanded root")
     nav.invalidateGroup(root.id)
     nav.update(ConnectionGroup.build(profiles))
     precondition(
@@ -68,17 +84,75 @@ import ToolCore
     precondition(
       ConnectionGroup.build(profiles).flatMap(\.profiles).map(\.id) == profiles.map(\.id),
       "Original records remain unchanged")
-    if CommandLine.arguments.count == 3, CommandLine.arguments[1] == "--render-local" {
+    func descendants(_ view: NSView) -> [NSView] {
+      [view] + view.subviews.flatMap { descendants($0) }
+    }
+    let objectBrowser = DataBrowser(frame: NSRect(x: 0, y: 0, width: 650, height: 700))
+    objectBrowser.update(nav.roots[0], breadcrumb: "fixture")
+    let objectTable = descendants(objectBrowser).compactMap { $0 as? NSTableView }.first!
+    precondition(objectTable.numberOfRows == 2, "Object browser contains database children")
+    let filter = descendants(objectBrowser).compactMap { $0 as? NSTextField }.first {
+      $0.isEditable
+    }!
+    filter.stringValue = "two"
+    objectBrowser.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
+    precondition(objectTable.numberOfRows == 1, "Object browser filters only loaded children")
+    var queryRequested = false
+    objectBrowser.onQuery = { queryRequested = true }
+    descendants(objectBrowser).compactMap { $0 as? NSButton }.first { $0.title == "查询" }!
+      .performClick(nil)
+    precondition(queryRequested, "Browse and query have separate actions")
+    let workspace = DataWorkspace(
+      profile: first, sessionID: "offscreen", elapsed: 0,
+      engine: EngineClient(executable: URL(fileURLWithPath: "/missing/test-engine")))
+    let editor = descendants(workspace).compactMap { $0 as? NSTextView }.first!
+    editor.string = "SELECT 42 AS draft"
+    descendants(workspace).compactMap { $0 as? NSButton }.first { $0.title == "浏览" }!.performClick(
+      nil)
+    precondition(!workspace.queryMode, "Browse mode hides query controls")
+    workspace.showQuery()
+    precondition(
+      workspace.queryMode && editor.string == "SELECT 42 AS draft",
+      "Returning to query preserves its draft")
+    let budgetNode = nav.roots[0].children[0]
+    budgetNode.children = (0..<5001).map {
+      DataTreeNode(
+        id: "large-\($0)", kind: .table, title: "table-\($0)", groupID: nav.roots[0].id,
+        profile: first)
+    }
+    nav.update(ConnectionGroup.build(profiles))
+    precondition(
+      nav.nodeCount <= 5000 && !nav.isCurrent(budgetNode),
+      "Source refresh evicts metadata over budget and invalidates old callbacks")
+    if CommandLine.arguments.count >= 3, CommandLine.arguments[1] == "--render-local" {
       let actual = try ProfileStore().load()
       let groups = ConnectionGroup.build(actual)
       nav.update(groups)
-      let frame = NSRect(x: 0, y: 0, width: 330, height: 940)
+      let selected = nav.roots.first { $0.profile?.kind == .mysql } ?? nav.roots[0]
+      if CommandLine.arguments.count >= 4 {
+        let metadata = try JSONDecoder().decode(
+          QueryOutput.self, from: Data(contentsOf: URL(fileURLWithPath: CommandLine.arguments[3])))
+        selected.children = metadata.rows.compactMap { row in
+          guard let name = row.first?.text, var profile = selected.profile else { return nil }
+          profile.id = UUID()
+          profile.database = name
+          return nav.databaseNode(profile: profile, groupID: selected.groupID)
+        }
+        selected.loaded = true
+      }
+      nav.expand(selected)
+      let frame = NSRect(x: 0, y: 0, width: 1200, height: 760)
       let window = NSWindow(
         contentRect: frame, styleMask: [.borderless], backing: .buffered, defer: false)
       let content = NSView(frame: frame)
+      content.wantsLayer = true
+      content.layer?.backgroundColor = Theme.paper.cgColor
       window.contentView = content
-      nav.scroll.frame = frame
+      nav.scroll.frame = NSRect(x: 0, y: 0, width: 330, height: 760)
       content.addSubview(nav.scroll)
+      let browser = DataBrowser(frame: NSRect(x: 330, y: 0, width: 870, height: 760))
+      browser.update(selected, breadcrumb: selected.title)
+      content.addSubview(browser)
       content.layoutSubtreeIfNeeded()
       nav.scroll.documentView?.layoutSubtreeIfNeeded()
       if let bitmap = content.bitmapImageRepForCachingDisplay(in: content.bounds) {

@@ -17,8 +17,8 @@ struct DataCommands: ParsableCommand {
     @OptionGroup var options: Options
     @OptionGroup var source: Input
     @Argument var id: String
-    @Option(name: .long, help: "SQL metadata level: databases, schemas (PG), tables.") var level:
-      String = "databases"
+    @Option(name: .long, help: "Metadata level: databases (SQL/Redis), schemas (PG), tables (SQL).")
+    var level: String = "databases"
     @Option(name: .long, help: "Database (MySQL tables) or schema (PG tables).") var scope: String =
       ""
     func run() async throws {
@@ -50,8 +50,13 @@ private func query(
       : catalog
         ? ["password", "apiKey", "text"] : ["password", "apiKey", "text", "target", "cursor"])
   let profile = try findProfile(id, in: ProfileStore(directory: options.directory).load())
-  if browseAction != nil, ![DatabaseKind.mysql, .pg].contains(profile.kind) {
-    throw CLIProblem.input("data browse supports MySQL and PostgreSQL metadata.")
+  if let action = browseAction {
+    let supported =
+      profile.kind == .mysql || profile.kind == .pg
+      || (profile.kind == .redis && action == "databases")
+    guard supported else {
+      throw CLIProblem.input("This metadata level is not supported for the profile kind.")
+    }
   }
   let password = try request.string("password", default: "")
   let apiKey = try request.string("apiKey", default: "")

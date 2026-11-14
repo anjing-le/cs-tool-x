@@ -46,6 +46,7 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
   private var expanded: Set<String> = []
   private var source: [String: [ConnectionProfile]] = [:]
   private var rebuilding = false
+  private var connectionFilter: String?
   var onSelect: ((DataTreeNode) -> Void)?
   var onExpand: ((DataTreeNode) -> Void)?
   var onActivate: ((DataTreeNode) -> Void)?
@@ -77,31 +78,70 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     let previous = Dictionary(uniqueKeysWithValues: roots.map { ($0.id, $0) })
     roots = groups.map { group in
       if let existing = previous[group.id], source[group.id] == group.profiles { return existing }
-      let account = group.identity.username.isEmpty ? "未指定账号" : group.identity.username
-      let root = DataTreeNode(
-        id: group.id, kind: .connection,
-        title: "\(group.identity.kind.title) · \(account)",
-        detail:
-          "\(group.identity.address) · \(group.identity.environment)\(group.hasPolicyVariants ? " · TLS 参数不同" : "")",
-        groupID: group.id, profile: group.profiles.first, expandable: true)
-      if group.identity.kind != .es {
-        root.children = group.scopes.map { scope in
-          let node = databaseNode(profile: scope.representative, groupID: group.id)
-          node.detail = scope.profiles.map { "\($0.name) · \($0.transportPolicy)" }.joined(
-            separator: "\n")
-          return node
+      let root = freshRoot(group)
+      if let existing = previous[group.id], source[group.id] != nil {
+        existing.title = root.title
+        existing.detail = root.detail
+        existing.profile = root.profile
+        if group.identity.kind != .es {
+          let known = Dictionary(
+            uniqueKeysWithValues: existing.children.filter { $0.kind == .database }.compactMap {
+              node in node.profile.map { ($0.database, node) }
+            })
+          var children: [DataTreeNode] = existing.loaded ? existing.children : []
+          for scope in group.scopes {
+            let profile = scope.representative
+            let prior = known[scope.database]
+            let child: DataTreeNode
+            if let prior, prior.profile?.transportPolicy == profile.transportPolicy {
+              child = prior
+              child.profile = profile
+            } else {
+              child = databaseNode(profile: profile, groupID: group.id)
+            }
+            if let index = children.firstIndex(where: { $0.id == child.id }) {
+              children[index] = child
+            } else {
+              children.append(child)
+            }
+          }
+          existing.children = children
         }
+        return existing
       }
       return root
     }
     source = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0.profiles) })
+    if nodeCount > 5000 { roots = groups.map { freshRoot($0) } }
     rebuild()
   }
+  private func freshRoot(_ group: ConnectionGroup) -> DataTreeNode {
+    let account = group.identity.username.isEmpty ? "未指定账号" : group.identity.username
+    let root = DataTreeNode(
+      id: group.id, kind: .connection,
+      title: (group.profiles.count == 1 || group.profiles[0].name == group.identity.kind.title)
+        && !group.profiles[0].name.isEmpty
+        ? group.profiles[0].name : "\(group.identity.kind.title) · \(account)",
+      detail:
+        "\(group.identity.address) · \(account) · \(group.identity.environment)\(group.hasPolicyVariants ? " · TLS 参数不同" : "")",
+      groupID: group.id, profile: group.profiles.first, expandable: true)
+    if group.identity.kind != .es {
+      root.children = group.scopes.map { scope in
+        let node = databaseNode(profile: scope.representative, groupID: group.id)
+        node.detail = scope.profiles.map { "\($0.name) · \($0.transportPolicy)" }.joined(
+          separator: "\n")
+        return node
+      }
+    }
+    return root
+  }
   func databaseNode(profile: ConnectionProfile, groupID: String) -> DataTreeNode {
-    DataTreeNode(
+    let node = DataTreeNode(
       id: groupID + "/db/" + ConnectionIdentity.token(profile.database), kind: .database,
       title: profile.kind == .redis ? "DB \(profile.database)" : profile.database,
       detail: profile.name, groupID: groupID, profile: profile, expandable: true)
+    node.parentID = groupID
+    return node
   }
   func invalidateGroup(_ id: String) { source.removeValue(forKey: id) }
   var nodeCount: Int {
@@ -133,6 +173,10 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     guard isCurrent(node) else { return }
     rebuild()
   }
+  func filterConnection(_ id: String?) {
+    connectionFilter = id
+    rebuild()
+  }
   private func rebuild() {
     let selected =
       table.selectedRow >= 0 && table.selectedRow < visible.count
@@ -145,7 +189,7 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         if expanded.contains(node.id) { add(node.children, depth: depth + 1) }
       }
     }
-    add(roots, depth: 0)
+    add(roots.filter { connectionFilter == nil || $0.id == connectionFilter }, depth: 0)
     rebuilding = true
     table.reloadData()
     if let selected, let index = visible.firstIndex(where: { $0.node.id == selected }) {

@@ -2,11 +2,20 @@ import AppKit
 import ToolCore
 
 @MainActor
-final class DataWorkspace: NSView {
+final class DataWorkspace: NSView, NSTextFieldDelegate {
   let profile: ConnectionProfile
   let sessionID: String
   private let engine: EngineClient
   private let editor: NSTextView
+  private let editorScroll: NSScrollView
+  private let resultFilter = Theme.field("筛选当前结果")
+  private let context = Theme.label("", size: 11, muted: true)
+  private var projection: ResultProjection?
+  private var shownIndices: [Int] = []
+  private var browseButton: PaperButton!
+  private var queryButton: PaperButton!
+  private(set) var queryMode = true
+  private var suggestedQuery: String
   private let targetField = Theme.field("ES 索引名称，例如 orders-*")
   private let status = Theme.label("按需读取 · 不自动扫描", size: 11, muted: true)
   private let note = Theme.label("结果最多 500 行 · 双击单元格展开", size: 10, muted: true)
@@ -29,6 +38,8 @@ final class DataWorkspace: NSView {
     self.sessionID = sessionID
     self.engine = engine
     let scroll = NSTextView.scrollableTextView()
+    editorScroll = scroll
+    suggestedQuery = profile.kind.initialQuery
     editor = scroll.documentView as! NSTextView
     super.init(frame: .zero)
     editor.textColor = Theme.ink
@@ -44,24 +55,33 @@ final class DataWorkspace: NSView {
     editor.isContinuousSpellCheckingEnabled = false
     editor.string = profile.kind.initialQuery
     editor.setAccessibilityLabel(profile.kind == .redis ? "Redis key 模式" : "查询编辑器")
-    let title = Theme.label(profile.displayName, size: 21, weight: .medium)
-    let badge = Theme.label("\(profile.environment) · 查询模式", size: 10, muted: true)
+    let title = Theme.label(profile.displayName, size: 17, weight: .medium)
+    let badge = Theme.label(profile.environment, size: 10, muted: true)
     disconnectButton = Theme.button("断开", target: self, action: #selector(disconnect))
     let heading = Theme.stack([title, badge, NSView(), disconnectButton], vertical: false)
     let sub = Theme.label(
-      "\(profile.kind.title) · \(profile.address) · 连接 \(elapsed) ms", size: 11, muted: true)
+      profile.address, size: 11, muted: true)
     catalogButton = Theme.button(
-      profile.kind == .redis ? "读取 Keys" : "读取目录", target: self, action: #selector(catalog))
+      "‹ 目录", target: self, action: #selector(catalog))
     historyButton = Theme.button("本次历史", target: self, action: #selector(showHistory))
     runButton = Theme.button("执行  ⌘↵", target: self, action: #selector(run), primary: true)
     runButton.keyEquivalent = "\r"
     runButton.keyEquivalentModifierMask = [.command]
-    let toolbar = Theme.stack([catalogButton, historyButton, NSView(), runButton], vertical: false)
+    browseButton = Theme.button("浏览", target: self, action: #selector(selectBrowse)) as? PaperButton
+    queryButton = Theme.button("查询", target: self, action: #selector(selectQuery)) as? PaperButton
+    context.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    context.stringValue = profile.kind == .es ? "选择索引" : profile.database
+    let toolbar = Theme.stack(
+      [catalogButton, browseButton, queryButton, context, NSView(), historyButton, runButton],
+      vertical: false, spacing: 8)
+    toolbar.detachesHiddenViews = true
     targetField.isHidden = profile.kind != .es
     nextButton = Theme.button("下一批 →", target: self, action: #selector(nextBatch))
     nextButton.isHidden = true
-    let resultBar = Theme.stack(
-      [Theme.label("结果", size: 12, weight: .medium), status, NSView(), nextButton], vertical: false)
+    resultFilter.delegate = self
+    resultFilter.setAccessibilityLabel("筛选当前结果")
+    let resultBar = Theme.stack([resultFilter, status, NSView(), nextButton], vertical: false)
+    resultFilter.widthAnchor.constraint(equalToConstant: 220).isActive = true
     errorLabel.textColor = NSColor(srgbRed: 0.65, green: 0.39, blue: 0.30, alpha: 1)
     errorLabel.maximumNumberOfLines = 2
     errorLabel.isHidden = true
@@ -71,6 +91,7 @@ final class DataWorkspace: NSView {
         results.scroll, note,
       ], spacing: 12)
     root.alignment = .leading
+    root.detachesHiddenViews = true
     Theme.pin(root, to: self, inset: 26)
     for view in [
       heading, sub, toolbar, targetField, scroll, errorLabel, resultBar, results.scroll, note,
@@ -82,6 +103,7 @@ final class DataWorkspace: NSView {
       true
     results.scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 120).isActive = true
     results.onActivate = { [weak self] row, col in self?.activate(row: row, column: col) }
+    setQueryMode(true)
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   @objc private func run() {
@@ -110,12 +132,28 @@ final class DataWorkspace: NSView {
       guard let first = row.first else { return }
       target = first.text
     }
+    setQueryMode(false)
+    if profile.kind == .mysql || profile.kind == .pg {
+      if let query = DataObjectQuery.select(
+        kind: profile.kind, schema: row[0].text, table: row[1].text)
+      {
+        if editor.string == suggestedQuery { editor.string = query }
+        suggestedQuery = query
+      }
+      context.stringValue = row[0].text + "." + row[1].text
+    } else {
+      context.stringValue = row.first?.text ?? profile.database
+    }
+    context.toolTip = context.stringValue
     if profile.kind == .es { targetField.stringValue = target }
     perform(action: "preview", text: editor.string, target: target)
   }
   private func setBusy(_ value: Bool) {
     busy = value
-    for button in [runButton, catalogButton, nextButton, disconnectButton, historyButton] {
+    for button in [
+      runButton, catalogButton, nextButton, disconnectButton, historyButton, browseButton,
+      queryButton,
+    ] {
       button?.isEnabled = !value
     }
     status.stringValue = value ? "等待响应…" : "按需读取"
@@ -130,24 +168,18 @@ final class DataWorkspace: NSView {
       do {
         let response = try await engine.run(
           id: sessionID, action: action, text: text, target: target, cursor: cursor)
-        let displayRows = await Task.detached {
-          response.rows.map { row in
-            row.map { value in
-              let text = value.text
-              return text.count > 2048 ? String(text.prefix(2048)) + "…" : text
-            }
-          }
-        }.value
+        let rendered = await Task.detached { ResultProjection(response) }.value
         setBusy(false)
         if action == "catalog" {
           status.stringValue = "目录 \(response.rows.count) 项 · \(response.elapsedMs) ms"
         } else {
           output = response
           results.setColumns(response.columns)
-          results.update(displayRows)
-          status.stringValue =
-            "\(response.rows.count) 行 · \(response.elapsedMs) ms\(response.truncated ? " · 展示已截断" : "")"
-          note.stringValue = response.note
+          projection = rendered
+          applyResultFilter()
+          note.stringValue = response.truncated ? "结果已截断，请缩小查询范围" : ""
+          note.toolTip = response.note
+          note.isHidden = note.stringValue.isEmpty
           nextButton.isHidden =
             profile.kind != .redis || response.nextCursor == nil || response.nextCursor == "0"
           if action == "query" {
@@ -164,7 +196,9 @@ final class DataWorkspace: NSView {
     }
   }
   private func activate(row: Int, column: Int) {
-    guard let output, row < output.rows.count else { return }
+    guard let output, shownIndices.indices.contains(row) else { return }
+    let row = shownIndices[row]
+    guard output.rows.indices.contains(row) else { return }
     if profile.kind == .redis && output.columns.count == 1 {
       preview(output.rows[row])
       return
@@ -184,6 +218,30 @@ final class DataWorkspace: NSView {
       }.value
       guard let window = self.window, window.attachedSheet == nil else { return }
       PaperDialog.show(title: output.columns[column], text: text, window: window, detail: true)
+    }
+  }
+  func showQuery() { setQueryMode(true) }
+  private func setQueryMode(_ query: Bool) {
+    queryMode = query
+    browseButton?.selected = !query
+    queryButton?.selected = query
+    editorScroll.isHidden = !query
+    targetField.isHidden = !query || profile.kind != .es
+    runButton?.isHidden = !query
+    historyButton?.isHidden = !query
+  }
+  @objc private func selectBrowse() { setQueryMode(false) }
+  @objc private func selectQuery() { setQueryMode(true) }
+  func controlTextDidChange(_ obj: Notification) { applyResultFilter() }
+  private func applyResultFilter() {
+    guard let projection else { return }
+    shownIndices = projection.indices(matching: resultFilter.stringValue)
+    results.update(shownIndices.map { projection.rows[$0] })
+    if !busy, let output {
+      let amount =
+        shownIndices.count == projection.rows.count
+        ? "\(shownIndices.count) 行" : "\(shownIndices.count) / \(projection.rows.count) 行"
+      status.stringValue = amount + " · \(output.elapsedMs) ms" + (output.truncated ? " · 已截断" : "")
     }
   }
   @objc private func showHistory() {

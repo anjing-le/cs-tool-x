@@ -428,6 +428,49 @@ macro_rules! read_rows {
     }};
 }
 
+fn redis_keyspaces(info: &str) -> Result<Output, String> {
+    if info.len() > BYTE_LIMIT {
+        return Err("Redis DB 元数据超过 8 MiB。".into());
+    }
+    let mut output = Output {
+        columns: vec!["db".into(), "keys".into(), "expires".into()],
+        note: "仅列出 INFO keyspace 中有数据的 DB；不代表全部可配置 DB".into(),
+        ..Default::default()
+    };
+    for line in info.lines() {
+        let Some((name, fields)) = line.split_once(':') else {
+            continue;
+        };
+        let Some(number) = name.strip_prefix("db").and_then(|s| s.parse::<u32>().ok()) else {
+            continue;
+        };
+        if output.rows.len() >= ROW_LIMIT {
+            output.truncated = true;
+            break;
+        }
+        let mut keys = "";
+        let mut expires = "";
+        for field in fields.split(',') {
+            if let Some(value) = field.strip_prefix("keys=") {
+                keys = value;
+            }
+            if let Some(value) = field.strip_prefix("expires=") {
+                expires = value;
+            }
+        }
+        output
+            .rows
+            .push(vec![json!(number.to_string()), json!(keys), json!(expires)]);
+    }
+    output.rows.sort_by_key(|row| {
+        row[0]
+            .as_str()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or(0)
+    });
+    Ok(output)
+}
+
 async fn execute(session: &Session, request: &Request) -> Result<Output, String> {
     match session {
         Session::Mysql(_) | Session::Pg(_) => {
@@ -574,6 +617,14 @@ async fn execute(session: &Session, request: &Request) -> Result<Output, String>
         Session::Redis(connection) => {
             let mut conn = connection.clone();
             match request.action.as_str() {
+                "databases" => {
+                    let info: String = redis::cmd("INFO")
+                        .arg("keyspace")
+                        .query_async(&mut conn)
+                        .await
+                        .map_err(|_| "Redis DB 目录读取失败，请检查 INFO 权限。")?;
+                    redis_keyspaces(&info)
+                }
                 "catalog" | "query" => {
                     let cursor = request
                         .cursor
@@ -770,6 +821,23 @@ mod tests {
                 assert!(validate_sql(kind, sql).is_err(), "{sql}");
             }
         }
+    }
+    #[test]
+    fn keyspace_metadata_is_bounded_and_numeric() {
+        let out = redis_keyspaces(
+            "# Keyspace\r\ndb13:keys=5,expires=1\r\ndb0:keys=2,expires=0\r\ndbevil:keys=4\r\n",
+        )
+        .unwrap();
+        assert_eq!(out.rows.len(), 2);
+        assert_eq!(out.rows[0][0], json!("0"));
+        assert_eq!(out.rows[1][0], json!("13"));
+        let input = (0..600)
+            .map(|i| format!("db{i}:keys=1,expires=0\n"))
+            .collect::<String>();
+        let many = redis_keyspaces(&input).unwrap();
+        assert_eq!(many.rows.len(), 500);
+        assert!(many.truncated);
+        assert!(redis_keyspaces(&"x".repeat(BYTE_LIMIT + 1)).is_err());
     }
     #[test]
     fn identifiers_and_payloads() {

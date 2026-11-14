@@ -14,7 +14,12 @@ final class WorkbenchController: NSWindowController {
   private var dataViews: [UUID: DataWorkspace] = [:]
   private var credentials: [String: ConnectionCredentials] = [:]
   private let navigator = DataNavigator()
-  private var overviewTable: TextTable?
+  private let connectionPicker = PaperSelect()
+  private var selectedConnectionID: String?
+  private var connectionChoices: [ConnectionGroup] = []
+  private var browser: DataBrowser?
+  private var browserNodeID: String?
+  private var browseContexts: [UUID: String] = [:]
   private var discoveryProfiles: [String: ConnectionProfile] = [:]
   private var selectedProfile: UUID?
   private var selectedModule: ToolModule?
@@ -103,8 +108,10 @@ final class WorkbenchController: NSWindowController {
     context.layer?.backgroundColor = Theme.sidebar.cgColor
     let add = Theme.button("＋", target: self, action: #selector(newConnection))
     add.toolTip = "新建数据连接"
-    let heading = Theme.stack(
-      [Theme.label("数据", size: 17, weight: .medium), NSView(), add], vertical: false)
+    connectionPicker.setAccessibilityLabel("切换数据连接")
+    connectionPicker.onChange(target: self, action: #selector(selectConnection))
+    connectionPicker.widthAnchor.constraint(greaterThanOrEqualToConstant: 210).isActive = true
+    let heading = Theme.stack([connectionPicker, NSView(), add], vertical: false)
     let side = Theme.stack(
       [
         heading, Theme.label("连接 / 库 / Schema / 对象", size: 10, muted: true), navigator.scroll,
@@ -156,10 +163,12 @@ final class WorkbenchController: NSWindowController {
     case .data:
       display(dataRoot, in: body)
       refreshConnections()
-      if let id = selectedProfile, let view = dataViews[id] {
-        display(view, in: dataContent)
-      } else {
-        dataWelcome()
+      if dataContent.subviews.isEmpty {
+        if let id = selectedConnectionID, let root = navigator.root(id) {
+          showTreeOverview(root)
+        } else {
+          dataWelcome()
+        }
       }
     case .terminal:
       if shellModel == nil { shellModel = Workspace() }
@@ -208,7 +217,38 @@ final class WorkbenchController: NSWindowController {
   private func refreshConnections() {
     let groups = ConnectionGroup.build(listedProfiles)
     navigator.update(groups)
-    footer.stringValue = "\(groups.count) 个连接 · \(profiles.count) 条原配置 · 按需读取"
+    connectionChoices = groups
+    connectionPicker.dismissMenu()
+    connectionPicker.addItems(
+      withTitles: groups.map { group in
+        group.profiles.first?.name.isEmpty == false
+          ? group.profiles[0].name : group.identity.kind.title
+      })
+    if !groups.contains(where: { $0.id == selectedConnectionID }) {
+      selectedConnectionID = groups.first?.id
+    }
+    if let index = groups.firstIndex(where: { $0.id == selectedConnectionID }) {
+      connectionPicker.selectItem(at: index)
+    }
+    navigator.filterConnection(selectedConnectionID)
+    footer.stringValue = "\(groups.count) 个连接"
+    if let browser, dataContent.subviews.contains(where: { $0 === browser }) {
+      if let id = browserNodeID, let node = navigator.node(id) { showTreeOverview(node) }
+      else if let id = selectedConnectionID, let root = navigator.root(id) { showTreeOverview(root) }
+    }
+  }
+  @objc private func selectConnection() {
+    let index = connectionPicker.indexOfSelectedItem
+    guard connectionChoices.indices.contains(index) else { return }
+    let id = connectionChoices[index].id
+    selectedConnectionID = id
+    selectedProfile =
+      dataViews.values.first(where: { ConnectionIdentity($0.profile).id == id })?.profile.id
+    navigator.filterConnection(id)
+    if let root = navigator.root(id) {
+      navigator.expand(root)
+      showTreeOverview(root)
+    }
   }
   private func dataWelcome() {
     let view = NSView()
@@ -229,13 +269,18 @@ final class WorkbenchController: NSWindowController {
   @objc private func newConnection() { showConnection(profile: nil) }
   private func showConnection(profile: ConnectionProfile?, browse: DataTreeNode? = nil) {
     guard let window, window.attachedSheet == nil else { return }
+    if let profile, dataViews[profile.id] != nil {
+      Theme.error(ToolError.message("请先断开当前会话，再修改连接设置。"), window: window)
+      return
+    }
     guard dataViews.count < 4 else {
       Theme.error(ToolError.message("最多同时保留 4 个数据会话，请先断开一个。"), window: window)
       return
     }
     let sheet = ConnectionSheet(
       engine: engine, profile: profile,
-      credentials: profile.flatMap { credentials[$0.credentialScope] })
+      credentials: profile.flatMap { credentials[$0.credentialScope] },
+      saveByDefault: profile == nil || profiles.contains(where: { $0.id == profile?.id }))
     connectionSheet = sheet
     sheet.onConnected = { [weak self] profile, id, elapsed, save, authentication in
       guard let self else { return }
@@ -244,6 +289,7 @@ final class WorkbenchController: NSWindowController {
       credentials[profile.credentialScope] = authentication
       dataViews[profile.id] = workspace
       selectedProfile = profile.id
+      selectedConnectionID = ConnectionIdentity(profile).id
       workspace.onBrowse = { [weak self] in self?.browseWorkspace(profile) }
       workspace.onDisconnect = { [weak self] in self?.closed(profile.id) }
       if save {
@@ -284,6 +330,7 @@ final class WorkbenchController: NSWindowController {
     window.beginSheet(sheet.window!)
   }
   private func closed(_ id: UUID) {
+    browseContexts.removeValue(forKey: id)
     let groupID = dataViews[id].map { ConnectionIdentity($0.profile).id }
     dataViews.removeValue(forKey: id)
     if let groupID,
@@ -349,12 +396,7 @@ extension WorkbenchController {
       activateTreeNode(node)
       return
     }
-    if node.kind != .connection, let profile = node.profile, let workspace = dataViews[profile.id] {
-      selectedProfile = profile.id
-      display(workspace, in: dataContent)
-    } else {
-      showTreeOverview(node)
-    }
+    showTreeOverview(node)
   }
   private func expandedTreeNode(_ node: DataTreeNode) {
     guard !node.loaded, !node.loading else { return }
@@ -367,11 +409,6 @@ extension WorkbenchController {
       if let profile = parent.profile, let workspace = dataViews[profile.id] {
         loadTree(parent, workspace: workspace, cursor: node.cursor)
       }
-      return
-    }
-    if node.kind == .connection, node.profile?.kind == .redis {
-      navigator.expand(node)
-      showTreeOverview(node)
       return
     }
     guard let profile = node.profile else { return }
@@ -393,6 +430,11 @@ extension WorkbenchController {
     }
   }
   private func browseWorkspace(_ profile: ConnectionProfile) {
+    if let id = browseContexts[profile.id], let node = navigator.node(id) {
+      navigator.expand(node)
+      showTreeOverview(node)
+      return
+    }
     let rootID = ConnectionIdentity(profile).id
     guard let root = navigator.root(rootID) else { return }
     if profile.kind == .es {
@@ -404,56 +446,51 @@ extension WorkbenchController {
     }
   }
   private func showTreeOverview(_ node: DataTreeNode) {
-    let group = ConnectionGroup.build(listedProfiles).first { $0.id == node.groupID }
-    let view = NSView()
-    let title = Theme.label(node.title, size: 20, weight: .medium)
-    let address = Theme.label(
-      node.kind == .connection ? node.detail : node.profile?.address ?? "", size: 11, muted: true)
-    let scope = Theme.label("展开连接选择库；展开库按需读取目录，点击表预览最多 100 行。", size: 11, muted: true)
-    let explanation = Theme.label(
-      group?.hasPolicyVariants == true
-        ? "此连接的原配置有不同 TLS 参数，按各条配置保留，不自动降级。"
-        : "同地址、端口、账号和环境合并显示；原始配置与 UUID 均保留。", size: 11, muted: true)
-    explanation.maximumNumberOfLines = 2
-    let titleText: String
-    if node.kind == .connection {
-      titleText =
-        node.profile?.kind == .es
-        ? "连接并读取索引" : node.profile?.kind == .redis ? "展开已配置 DB" : "连接并读取可见库"
-    } else {
-      titleText = "连接并读取目录"
+    if browserNodeID != node.id {
+      browser = DataBrowser(frame: .zero)
+      browserNodeID = node.id
     }
-    let load = TreeActionButton(titleText) { [weak self, weak node] in
+    guard let browser else { return }
+    browser.onOpen = { [weak self] child in self?.activateTreeNode(child) }
+    browser.onRefresh = { [weak self, weak node] in
       guard let node else { return }
       self?.activateTreeNode(node)
     }
-    let records =
-      node.kind == .connection
-      ? group?.profiles ?? []
-      : group?.profiles.filter { $0.database == node.profile?.database } ?? []
-    let table = TextTable(headers: ["原配置（双击连接 / 编辑）", "库 / DB", "传输"], widths: [300, 190, 110])
-    table.update(
-      records.map { [$0.name.isEmpty ? $0.kind.title : $0.name, $0.database, $0.transportPolicy] })
-    table.onActivate = { [weak self] row, _ in
-      guard records.indices.contains(row) else { return }
-      if let self, self.dataViews[records[row].id] != nil {
-        self.selectedProfile = records[row].id
-        self.display(self.dataViews[records[row].id]!, in: self.dataContent)
+    browser.onBack = { [weak self, weak node] in
+      guard let self, let id = node?.parentID, let parent = navigator.node(id) else { return }
+      showTreeOverview(parent)
+    }
+    browser.onQuery = { [weak self, weak node] in
+      guard let self, let node, let profile = node.profile else { return }
+      let active = dataViews[profile.id]
+      if let active {
+        selectedProfile = active.profile.id
+        active.showQuery()
+        display(active, in: dataContent)
       } else {
-        self?.showConnection(profile: records[row])
+        showConnection(profile: profile)
       }
     }
-    overviewTable = table
-    let count = Theme.label("\(records.count) 条原配置 · 密码仅在内存复用 · 最多 4 个数据会话", size: 10, muted: true)
-    let stack = Theme.stack(
-      [title, address, scope, explanation, load, Theme.separator(), count, table.scroll],
-      spacing: 16)
-    Theme.pin(stack, to: view, inset: 24)
-    for child in [title, address, scope, explanation, count, table.scroll] {
-      child.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+    browser.onEdit = { [weak self, weak node] in
+      guard let profile = node?.profile else { return }
+      self?.showConnection(profile: profile)
     }
-    table.scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 150).isActive = true
-    display(view, in: dataContent)
+    var names = [node.title]
+    var current = node
+    for _ in 0..<8 {
+      guard let id = current.parentID, let parent = navigator.node(id) else { break }
+      names.insert(parent.title, at: 0)
+      current = parent
+    }
+    browser.update(node, breadcrumb: names.joined(separator: " / "))
+    display(browser, in: dataContent)
+  }
+  private func refreshBrowser(_ node: DataTreeNode) {
+    if browserNodeID == node.id, let browser,
+      dataContent.subviews.contains(where: { $0 === browser })
+    {
+      showTreeOverview(node)
+    }
   }
   private func discoveredProfile(_ database: String, from template: ConnectionProfile)
     -> ConnectionProfile
@@ -491,7 +528,7 @@ extension WorkbenchController {
     let action: String
     let target: String
     switch (node.kind, profile.kind) {
-    case (.connection, .mysql), (.connection, .pg):
+    case (.connection, .mysql), (.connection, .pg), (.connection, .redis):
       action = "databases"
       target = ""
     case (.connection, .es):
@@ -515,14 +552,17 @@ extension WorkbenchController {
       Theme.error(ToolError.message("目录缓存已达 5000 项，请断开不用的连接后重试。"), window: window)
       return
     }
+    browseContexts[profile.id] = node.id
     node.loading = true
     navigator.changed(node)
+    showTreeOverview(node)
     Task { [weak self, weak node, weak workspace] in
       guard let self, let node, let workspace else { return }
       defer {
         if navigator.isCurrent(node) {
           node.loading = false
           navigator.changed(node)
+          refreshBrowser(node)
         }
       }
       do {
@@ -546,6 +586,7 @@ extension WorkbenchController {
               id: node.id + "/schema/" + ConnectionIdentity.token(name), kind: .schema,
               title: name, groupID: node.groupID, profile: profile, expandable: true)
             child.schema = name
+            child.parentID = node.id
             return child
           }
         } else {
@@ -567,6 +608,7 @@ extension WorkbenchController {
               id: id, kind: kind, title: name, detail: row.map(\.text).joined(separator: " · "),
               groupID: node.groupID, profile: profile)
             child.object = row
+            child.parentID = node.id
             children.append(child)
           }
           if children.count > 500 { children = Array(children.prefix(500)) }
@@ -599,17 +641,4 @@ extension WorkbenchController {
       }
     }
   }
-}
-@MainActor
-private final class TreeActionButton: PaperButton {
-  private let handler: () -> Void
-  init(_ title: String, handler: @escaping () -> Void) {
-    self.handler = handler
-    super.init(frame: .zero)
-    self.title = title
-    target = self
-    action = #selector(invoke)
-  }
-  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  @objc private func invoke() { handler() }
 }
