@@ -29,9 +29,18 @@ import ToolCore
     precondition(
       graph.row?.segments.filter { $0.part == .outgoing }.count == 2,
       "Merge graph has two real parent edges")
+    let fullWidth = log.enclosingScrollView!.frame.width
     log.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
     try await idle()
-    let files = tables.first { $0.tableColumns.contains { $0.title == "变更文件" } }!
+    precondition(
+      log.headerView == nil && log.tableColumns.count == 3,
+      "History omits headers and author/date/hash columns")
+    let files = allViews(workspace).compactMap { $0 as? NSTableView }.first {
+      $0.tableColumns.contains { $0.title == "变更文件" }
+    }!
+    precondition(
+      log.enclosingScrollView!.frame.width < fullWidth, "Details appear only after selection")
+    precondition(files.headerView == nil, "Changed files omit redundant column headings")
     precondition(files.numberOfRows == 1, "Selected merge shows first-parent changed files")
     if CommandLine.arguments.count > 2 {
       window.layoutIfNeeded()
@@ -40,8 +49,26 @@ import ToolCore
       try rep.representation(using: .png, properties: [:])!.write(
         to: URL(fileURLWithPath: CommandLine.arguments[2]))
     }
+    let close = allViews(workspace).compactMap { $0 as? PaperIconButton }.first {
+      $0.toolTip == "收起详情"
+    }!
+    close.performClick(nil)
+    workspace.layoutSubtreeIfNeeded()
+    precondition(
+      abs(log.enclosingScrollView!.frame.width - fullWidth) < 2,
+      "Closing details returns space to history")
+    let filterButton = allViews(workspace).compactMap { $0 as? PaperIconButton }.first {
+      $0.toolTip == "筛选"
+    }!
+    filterButton.performClick(nil)
+    workspace.layoutSubtreeIfNeeded()
+    precondition(
+      allViews(workspace).compactMap { $0 as? NSTextField }.contains {
+        $0.placeholderString == "作者"
+      }, "Secondary filters remain accessible on demand")
+    filterButton.performClick(nil)
     let fields = allViews(workspace).compactMap { $0 as? NSTextField }
-    let search = fields.first { $0.placeholderString == "搜索提交信息 / 哈希" }!
+    let search = fields.first { $0.placeholderString == "搜索…" }!
     search.stringValue = "Search across commit history"
     search.sendAction(search.action, to: search.target)
     try await idle()

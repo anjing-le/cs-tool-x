@@ -53,10 +53,12 @@ final class WorkbenchController: NSWindowController {
     root.wantsLayer = true
     root.layer?.backgroundColor = Theme.paper.cgColor
     window.contentView = root
-    let back = Theme.button("‹", target: self, action: #selector(goHome))
+    let back = PaperIconButton(
+      symbol: "chevron.left", label: "返回首页", target: self, action: #selector(goHome))
     back.setAccessibilityLabel("返回首页")
     back.toolTip = "返回首页 ⌘1"
-    let update = Theme.button("↻", target: self, action: #selector(checkUpdates))
+    let update = PaperIconButton(
+      symbol: "arrow.down.circle", label: "检查更新", target: self, action: #selector(checkUpdates))
     update.setAccessibilityLabel("检查更新")
     update.toolTip = "检查更新"
     header = Theme.stack([back, title, NSView(), update], vertical: false, spacing: 12)
@@ -168,7 +170,7 @@ final class WorkbenchController: NSWindowController {
     selectedModule = module
     header.isHidden = false
     headerHeight.constant = 43
-    title.stringValue = module == .terminal ? "" : module.title
+    title.stringValue = module == .terminal || module == .git ? "" : module.title
     switch module {
     case .data:
       display(dataRoot, in: body)

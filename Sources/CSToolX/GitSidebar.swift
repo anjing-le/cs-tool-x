@@ -71,20 +71,12 @@ import ToolCore
         repository: repo, reference: nil, title: repo.location.name, depth: 0, group: nil)
       rows.append(root)
       guard expanded.contains(root.id) || !search.isEmpty else { continue }
-      for kind in [GitReference.Kind.local, .remote, .tag] {
-        let refs = matching.filter { $0.kind == kind }
-        guard !refs.isEmpty else { continue }
-        let group = Row(
-          repository: repo, reference: nil,
-          title: kind == .local ? "本地分支" : kind == .remote ? "远程分支" : "标签", depth: 1,
-          group: kind.rawValue)
-        rows.append(group)
-        guard !expanded.contains("collapsed:" + group.id) || !search.isEmpty else { continue }
-        rows += refs.sorted { a, b in
-          a.current != b.current
-            ? a.current : a.name.localizedStandardCompare(b.name) == .orderedAscending
-        }.map { Row(repository: repo, reference: $0, title: $0.name, depth: 2, group: nil) }
-      }
+      rows += matching.sorted { a, b in
+        if a.current != b.current { return a.current }
+        if a.kind != b.kind { return a.kind.rawValue < b.kind.rawValue }
+        return a.name.localizedStandardCompare(b.name) == .orderedAscending
+      }.map { Row(repository: repo, reference: $0, title: $0.name, depth: 1, group: nil) }
+
     }
     rebuilding = true
     table.reloadData()
@@ -97,7 +89,7 @@ import ToolCore
   }
   func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
   func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-    rows[row].depth == 0 && rows[row].repository != nil ? 47 : 29
+    rows[row].depth == 0 && rows[row].repository != nil ? 42 : 27
   }
   func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
   {
@@ -133,7 +125,8 @@ import ToolCore
   }
 }
 @MainActor private final class GitSideCell: NSTableCellView {
-  private let toggle = Theme.button("›", target: nil, action: #selector(disclose))
+  private let toggle = PaperIconButton(
+    symbol: "chevron.right", label: "展开", target: nil, action: #selector(disclose))
   private let title = Theme.label("", size: 12)
   private let detail = Theme.label("", size: 10, muted: true)
   private let dot = Theme.label("●", size: 10)
@@ -149,8 +142,8 @@ import ToolCore
     }
     inset = toggle.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
     NSLayoutConstraint.activate([
-      inset, toggle.widthAnchor.constraint(equalToConstant: 20),
-      toggle.heightAnchor.constraint(equalToConstant: 25),
+      inset, toggle.widthAnchor.constraint(equalToConstant: 18),
+      toggle.heightAnchor.constraint(equalToConstant: 24),
       toggle.centerYAnchor.constraint(equalTo: centerYAnchor),
       dot.leadingAnchor.constraint(equalTo: toggle.trailingAnchor, constant: 2),
       dot.widthAnchor.constraint(equalToConstant: 12),
@@ -171,11 +164,12 @@ import ToolCore
     self.action = action
     inset.constant = CGFloat(5 + row.depth * 14)
     toggle.isHidden = !expandable
-    toggle.title = expanded ? "⌄" : "›"
+    toggle.symbol = expanded ? "chevron.down" : "chevron.right"
     toggle.setAccessibilityLabel((expanded ? "收起 " : "展开 ") + row.title)
     title.stringValue = String(row.title.prefix(200))
     title.font = .systemFont(
       ofSize: 12, weight: row.reference?.current == true ? .medium : .regular)
+    dot.stringValue = row.reference?.kind == .tag ? "◇" : "●"
     if let reference = row.reference {
       dot.textColor = GitPalette.reference(reference)
     } else if let repo = row.repository {

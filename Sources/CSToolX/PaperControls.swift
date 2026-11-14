@@ -482,3 +482,64 @@ final class PaperTableHeader: NSTableHeaderCell {
       ])
   }
 }
+
+/// Unframed app-owned icon target; no persistent bezel or background.
+@MainActor final class PaperIconButton: PaperButton {
+  var symbol: String { didSet { needsDisplay = true } }
+  var badge = false { didSet { needsDisplay = true } }
+  private var over = false
+  private var iconKey = ""
+  private var icon: NSImage?
+  override var intrinsicContentSize: NSSize { NSSize(width: 28, height: 28) }
+  init(symbol: String, label: String, target: AnyObject?, action: Selector) {
+    self.symbol = symbol
+    super.init(frame: .zero)
+    self.target = target
+    self.action = action
+    title = ""
+    toolTip = label
+    setAccessibilityLabel(label)
+  }
+  required init?(coder: NSCoder) { nil }
+  override func mouseEntered(with event: NSEvent) {
+    super.mouseEntered(with: event)
+    over = true
+  }
+  override func mouseExited(with event: NSEvent) {
+    super.mouseExited(with: event)
+    over = false
+  }
+  override func draw(_ dirtyRect: NSRect) {
+    if isEnabled && (over || isHighlighted || selected) {
+      Theme.pale.withAlphaComponent(selected ? 0.7 : 0.45).setFill()
+      NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 2), xRadius: 4, yRadius: 4).fill()
+    }
+    let color = isEnabled ? Theme.ink : Theme.muted.withAlphaComponent(0.4)
+    let key = symbol + (isEnabled ? ":on" : ":off")
+    if iconKey != key {
+      iconKey = key
+      icon = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)?
+        .withSymbolConfiguration(
+          .init(pointSize: 12, weight: .regular).applying(.init(paletteColors: [color])))
+    }
+    if let icon {
+      let scale = min(14 / max(1, icon.size.width), 14 / max(1, icon.size.height))
+      let size = NSSize(width: icon.size.width * scale, height: icon.size.height * scale)
+      icon.draw(
+        in: NSRect(
+          x: (bounds.width - size.width) / 2, y: (bounds.height - size.height) / 2,
+          width: size.width, height: size.height))
+    }
+    if badge {
+      Theme.sage.setFill()
+      NSBezierPath(ovalIn: NSRect(x: bounds.maxX - 6, y: bounds.maxY - 6, width: 4, height: 4))
+        .fill()
+    }
+    if window?.firstResponder === self {
+      Theme.sage.setStroke()
+      let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 4, yRadius: 4)
+      path.lineWidth = 1
+      path.stroke()
+    }
+  }
+}

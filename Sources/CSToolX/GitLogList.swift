@@ -42,9 +42,9 @@ enum GitPalette {
     table.backgroundColor = Theme.paper
     table.focusRingType = .none
     table.columnAutoresizingStyle = .noColumnAutoresizing
+    table.headerView = nil
     for (name, title, width) in [
-      ("root", "仓库", 88.0), ("graph", "", 90.0), ("subject", "提交", 470.0), ("author", "作者", 100.0),
-      ("date", "日期", 120.0), ("hash", "哈希", 75.0),
+      ("root", "", 88.0), ("graph", "", 90.0), ("subject", "", 470.0),
     ] {
       let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier(name))
       column.title = title
@@ -103,6 +103,8 @@ enum GitPalette {
     if let graphColumn = table.tableColumns.first(where: { $0.identifier.rawValue == "graph" }) {
       graphColumn.width = min(220, CGFloat(presentation.columns + 1) * 12 + 18)
     }
+    table.tableColumns.first { $0.identifier.rawValue == "root" }?.isHidden =
+      Set(commits.map(\.repository)).count <= 1
     fitColumns(scroll.contentView.bounds.width)
     rebuilding = true
     table.reloadData()
@@ -117,7 +119,9 @@ enum GitPalette {
     guard let subject = table.tableColumns.first(where: { $0.identifier.rawValue == "subject" }),
       width > 0
     else { return }
-    let fixed = table.tableColumns.filter { $0 !== subject }.reduce(CGFloat(0)) { $0 + $1.width }
+    let fixed = table.tableColumns.filter { $0 !== subject && !$0.isHidden }.reduce(CGFloat(0)) {
+      $0 + $1.width
+    }
     let desired = max(220, width - fixed)
     if abs(subject.width - desired) > 0.5 { subject.width = desired }
   }
@@ -145,7 +149,9 @@ enum GitPalette {
       view.detachedHead =
         repositories[commit.repository].map { $0.head == commit.oid && $0.branch.isEmpty } ?? false
       view.toolTip = String(
-        (commit.subject + "\n" + view.references.map(\.name).joined(separator: ", ")).prefix(4000))
+        (commit.subject + "\n" + commit.author + " · "
+          + Self.date.string(from: Date(timeIntervalSince1970: Double(commit.timestamp))) + "\n"
+          + commit.oid + "\n" + view.references.map(\.name).joined(separator: ", ")).prefix(4000))
       view.needsDisplay = true
       return view
     }

@@ -4,16 +4,14 @@ import ToolCore
 @MainActor final class GitWorkspace: NSView, NSTextFieldDelegate {
   private let sidebar = GitSidebar()
   private let history = GitLogList()
-  private let repositorySearch = Theme.field("筛选仓库 / 分支")
-  private let search = Theme.field("搜索提交信息 / 哈希")
+  private let repositorySearch = Theme.field("查找…")
+  private let search = Theme.field("搜索…")
   private let author = Theme.field("作者")
-  private let repositoryPicker = PaperSelect()
-  private let branchPicker = PaperSelect()
   private let datePicker = PaperSelect()
   private let pathLabel = Theme.label("选择一个目录，查看其中的 Git 仓库", size: 12, muted: true)
   private let status = Theme.label("", size: 11, muted: true)
-  private let detailTitle = Theme.label("提交详情", size: 13, weight: .medium)
-  private let detailMeta = Theme.label("选择一条提交", size: 10, muted: true)
+  private let detailTitle = Theme.label("", size: 13, weight: .medium)
+  private let detailMeta = Theme.label("", size: 10, muted: true)
   private let message = NSTextView()
   private let files = TextTable(headers: ["状态", "变更文件"], widths: [50, 260])
   private var more: NSButton!
@@ -27,7 +25,11 @@ import ToolCore
   private(set) var repositories: [GitRepository] = []
   private var selectedRepository: String?
   private var selectedReference = ""
-  private var branchChoices: [GitReference] = []
+  private var filterBar: NSStackView!
+  private var filterDivider: NSBox!
+  private var filterButton: PaperIconButton!
+  private var detailPanel: NSView!
+  private var detailDivider: NSBox!
   private var pages: [String: [GitCommit]] = [:]
   private var offsets: [String: Int] = [:]
   private var moreRoots = Set<String>()
@@ -44,30 +46,37 @@ import ToolCore
     super.init(frame: frame)
     wantsLayer = true
     layer?.backgroundColor = Theme.paper.cgColor
-    let choose = Theme.button("打开目录", target: self, action: #selector(chooseDirectory))
-    let refresh = Theme.button("刷新", target: self, action: #selector(refreshDirectory))
-    more = Theme.button("加载更多", target: self, action: #selector(loadMore))
+    let choose = PaperIconButton(
+      symbol: "folder", label: "打开目录", target: self, action: #selector(chooseDirectory))
+    let refresh = PaperIconButton(
+      symbol: "arrow.clockwise", label: "刷新", target: self, action: #selector(refreshDirectory))
+    filterButton = PaperIconButton(
+      symbol: "line.3.horizontal.decrease", label: "筛选", target: self,
+      action: #selector(toggleFilters))
+    more = PaperIconButton(
+      symbol: "arrow.down", label: "加载更多", target: self, action: #selector(loadMore))
     more.isEnabled = false
+    more.isHidden = true
+    pathLabel.stringValue = "选择目录"
     pathLabel.lineBreakMode = .byTruncatingMiddle
+    pathLabel.widthAnchor.constraint(lessThanOrEqualToConstant: 280).isActive = true
+    search.widthAnchor.constraint(equalToConstant: 240).isActive = true
     let directoryBar = Theme.stack(
-      [choose, pathLabel, NSView(), refresh], vertical: false, spacing: 12)
-    directoryBar.edgeInsets = NSEdgeInsets(top: 10, left: 16, bottom: 10, right: 16)
-    directoryBar.heightAnchor.constraint(equalToConstant: 54).isActive = true
-    repositoryPicker.addItems(withTitles: ["所有仓库"])
-    repositoryPicker.onChange(target: self, action: #selector(selectRepository))
-    branchPicker.addItems(withTitles: ["所有分支"])
-    branchPicker.onChange(target: self, action: #selector(selectBranch))
+      [choose, pathLabel, NSView(), search, filterButton, refresh], vertical: false, spacing: 10)
+    directoryBar.edgeInsets = NSEdgeInsets(top: 6, left: 12, bottom: 6, right: 12)
+    directoryBar.heightAnchor.constraint(equalToConstant: 46).isActive = true
     datePicker.addItems(withTitles: ["所有日期", "最近 7 天", "最近 30 天", "最近 90 天", "最近一年"])
     datePicker.onChange(target: self, action: #selector(filterChanged))
-    repositoryPicker.widthAnchor.constraint(equalToConstant: 150).isActive = true
-    branchPicker.widthAnchor.constraint(equalToConstant: 155).isActive = true
-    author.widthAnchor.constraint(equalToConstant: 100).isActive = true
-    datePicker.widthAnchor.constraint(equalToConstant: 110).isActive = true
-    search.widthAnchor.constraint(greaterThanOrEqualToConstant: 140).isActive = true
-    let filters = Theme.stack(
-      [search, repositoryPicker, branchPicker, author, datePicker], vertical: false, spacing: 8)
-    filters.edgeInsets = NSEdgeInsets(top: 8, left: 16, bottom: 8, right: 16)
-    filters.heightAnchor.constraint(equalToConstant: 50).isActive = true
+    author.widthAnchor.constraint(equalToConstant: 160).isActive = true
+    datePicker.widthAnchor.constraint(equalToConstant: 130).isActive = true
+    let reset = PaperIconButton(
+      symbol: "xmark", label: "清除作者与日期筛选", target: self, action: #selector(clearFilters))
+    filterBar = Theme.stack([NSView(), author, datePicker, reset], vertical: false, spacing: 8)
+    filterBar.edgeInsets = NSEdgeInsets(top: 4, left: 12, bottom: 4, right: 12)
+    filterBar.heightAnchor.constraint(equalToConstant: 42).isActive = true
+    filterBar.isHidden = true
+    filterDivider = Theme.separator()
+    filterDivider.isHidden = true
     for (field, label) in [
       (repositorySearch, "筛选仓库和分支"), (search, "搜索 Git 提交信息或哈希"), (author, "按作者筛选提交"),
     ] {
@@ -76,23 +85,9 @@ import ToolCore
       field.target = self
       field.action = #selector(filterChanged)
     }
-    repositoryPicker.setAccessibilityLabel("按仓库筛选历史")
-    branchPicker.setAccessibilityLabel("按分支筛选历史")
     datePicker.setAccessibilityLabel("按日期筛选历史")
-    let legend = Theme.label("● HEAD    ● 本地    ● 远程", size: 10, muted: true)
-    let legendText = NSMutableAttributedString(
-      string: "● HEAD    ● 本地    ● 远程",
-      attributes: [.font: NSFont.systemFont(ofSize: 10), .foregroundColor: Theme.muted])
-    for (range, color) in [
-      (NSRange(location: 0, length: 1), GitPalette.head),
-      (NSRange(location: 10, length: 1), GitPalette.local),
-      (NSRange(location: 18, length: 1), GitPalette.remote),
-    ] where NSMaxRange(range) <= legendText.length {
-      legendText.addAttribute(.foregroundColor, value: color, range: range)
-    }
-    legend.attributedStringValue = legendText
     let left = Theme.stack(
-      [Theme.label("仓库与分支", size: 13, weight: .medium), repositorySearch, legend, sidebar.scroll],
+      [repositorySearch, sidebar.scroll],
       spacing: 10)
     left.edgeInsets = NSEdgeInsets(top: 14, left: 12, bottom: 12, right: 12)
     left.wantsLayer = true
@@ -102,35 +97,41 @@ import ToolCore
       view.widthAnchor.constraint(equalTo: left.widthAnchor, constant: -24).isActive = true
     }
     let right = makeDetailPanel()
+    detailPanel = right
     right.widthAnchor.constraint(equalToConstant: 285).isActive = true
     let dividers = [Theme.separator(vertical: true), Theme.separator(vertical: true)]
+    detailDivider = dividers[1]
     let content = Theme.stack(
       [left, dividers[0], history.scroll, dividers[1], right], vertical: false, spacing: 0)
     for divider in dividers {
       divider.heightAnchor.constraint(equalTo: content.heightAnchor).isActive = true
     }
     content.alignment = .top
+    content.detachesHiddenViews = true
+    right.isHidden = true
+    detailDivider.isHidden = true
     for view in [left, history.scroll, right] {
       view.heightAnchor.constraint(equalTo: content.heightAnchor).isActive = true
     }
     history.scroll.widthAnchor.constraint(greaterThanOrEqualToConstant: 350).isActive = true
     let footer = Theme.stack([status, NSView(), more], vertical: false, spacing: 12)
     footer.edgeInsets = NSEdgeInsets(top: 6, left: 16, bottom: 6, right: 16)
-    footer.heightAnchor.constraint(equalToConstant: 44).isActive = true
+    footer.heightAnchor.constraint(equalToConstant: 32).isActive = true
     let layout = Theme.stack(
       [
-        directoryBar, Theme.separator(), filters, Theme.separator(), content, Theme.separator(),
+        directoryBar, Theme.separator(), filterBar, filterDivider, content, Theme.separator(),
         footer,
       ], spacing: 0)
+    layout.detachesHiddenViews = true
     Theme.pin(layout, to: self)
-    for view in [directoryBar, filters, content, footer] {
+    for view in [directoryBar, filterBar!, content, footer] {
       view.widthAnchor.constraint(equalTo: layout.widthAnchor).isActive = true
     }
     sidebar.onSelect = { [weak self] repo, reference in
       guard let self else { return }
       selectedRepository = repo?.id
       selectedReference = reference?.fullName ?? ""
-      syncPickers()
+      validateReference()
       reloadLog()
     }
     history.onSelect = { [weak self] in self?.showCommit($0) }
@@ -163,11 +164,13 @@ import ToolCore
     messageScroll.drawsBackground = false
     messageScroll.autohidesScrollers = true
     messageScroll.heightAnchor.constraint(equalToConstant: 165).isActive = true
+    let close = PaperIconButton(
+      symbol: "xmark", label: "收起详情", target: self, action: #selector(closeDetail))
+    let heading = Theme.stack([detailTitle, NSView(), close], vertical: false, spacing: 4)
     let stack = Theme.stack(
-      [
-        detailTitle, detailMeta, messageScroll, Theme.separator(),
-        Theme.label("变更文件", size: 12, weight: .medium), files.scroll,
-      ], spacing: 10)
+      [heading, detailMeta, messageScroll, Theme.separator(), files.scroll], spacing: 10)
+    heading.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
+    files.table.headerView = nil
     stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 12, right: 14)
     for view in [detailMeta, messageScroll, files.scroll] {
       view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
@@ -210,8 +213,6 @@ import ToolCore
     detailSerial += 1
     searchTask?.cancel()
     searchTask = nil
-    repositoryPicker.dismissMenu()
-    branchPicker.dismissMenu()
     datePicker.dismissMenu()
   }
   func stop() { pause() }
@@ -249,7 +250,7 @@ import ToolCore
     needsLog = false
     status.stringValue = "正在发现 Git 仓库…"
     more.isEnabled = false
-    pathLabel.stringValue = path
+    pathLabel.stringValue = URL(fileURLWithPath: path).lastPathComponent
     pathLabel.toolTip = path
     repositories = []
     locations = []
@@ -281,7 +282,7 @@ import ToolCore
         selectedRepository = loaded.first?.id
         if let selectedRepository { sidebar.expand(selectedRepository) }
         sidebar.select(repository: selectedRepository)
-        syncPickers()
+        validateReference()
         reloadLog()
       } catch is CancellationError {} catch {
         guard scanSerial == serial else { return }
@@ -300,53 +301,33 @@ import ToolCore
     sidebar.update(repositories)
     status.stringValue = "正在读取分支 \(repositories.count) / \(locations.count)"
   }
-  private func syncPickers() {
-    let nameCounts = Dictionary(grouping: repositories, by: { $0.location.name }).mapValues(\.count)
-    repositoryPicker.addItems(
-      withTitles: ["所有仓库"]
-        + repositories.map { repo in
-          if nameCounts[repo.location.name, default: 0] > 1, repo.id.hasPrefix(root + "/") {
-            return String(repo.id.dropFirst(root.count + 1))
-          }
-          return repo.location.name
-        })
-    if let index = repositories.firstIndex(where: { $0.id == selectedRepository }) {
-      repositoryPicker.selectItem(at: index + 1)
-    }
-    let allReferences = repositories.first(where: { $0.id == selectedRepository })?.references ?? []
-    branchChoices = Array(allReferences.prefix(200))
+  private func validateReference() {
     if !selectedReference.isEmpty,
-      !branchChoices.contains(where: { $0.fullName == selectedReference }),
-      let chosen = allReferences.first(where: { $0.fullName == selectedReference })
+      !repositories.contains(where: {
+        $0.id == selectedRepository
+          && $0.references.contains(where: { $0.fullName == selectedReference })
+      })
     {
-      branchChoices.append(chosen)
-    }
-    branchPicker.toolTip = allReferences.count > 200 ? "下拉显示前 200 项；完整分支请在左侧搜索" : "仅筛选历史，不切换工作分支"
-    branchPicker.addItems(
-      withTitles: ["所有分支"]
-        + branchChoices.map {
-          ($0.kind == .remote ? "远程 · " : $0.kind == .tag ? "标签 · " : "") + $0.name
-        })
-    if let index = branchChoices.firstIndex(where: { $0.fullName == selectedReference }) {
-      branchPicker.selectItem(at: index + 1)
-    } else {
       selectedReference = ""
     }
-    branchPicker.isEnabled = selectedRepository != nil
   }
-  @objc private func selectRepository() {
-    let index = repositoryPicker.indexOfSelectedItem - 1
-    selectedRepository = repositories.indices.contains(index) ? repositories[index].id : nil
-    selectedReference = ""
-    sidebar.select(repository: selectedRepository)
-    syncPickers()
+  @objc private func toggleFilters() {
+    filterBar.isHidden.toggle()
+    filterDivider.isHidden = filterBar.isHidden
+    filterButton.selected = !filterBar.isHidden
+    if !filterBar.isHidden { window?.makeFirstResponder(author) } else { datePicker.dismissMenu() }
+  }
+  @objc private func clearFilters() {
+    author.stringValue = ""
+    datePicker.selectItem(at: 0)
     reloadLog()
   }
-  @objc private func selectBranch() {
-    let index = branchPicker.indexOfSelectedItem - 1
-    selectedReference = branchChoices.indices.contains(index) ? branchChoices[index].fullName : ""
-    sidebar.select(repository: selectedRepository, reference: selectedReference)
-    reloadLog()
+  @objc private func closeDetail() {
+    detailTask?.cancel()
+    detailTask = nil
+    detailSerial += 1
+    clearDetail()
+    history.table.deselectAll(nil)
   }
   func controlTextDidChange(_ notification: Notification) {
     if notification.object as? NSTextField === repositorySearch {
@@ -383,6 +364,7 @@ import ToolCore
     currentFilter.text = search.stringValue
     currentFilter.author = author.stringValue
     currentFilter.days = [0, 7, 30, 90, 365][datePicker.indexOfSelectedItem]
+    filterButton.badge = !currentFilter.author.isEmpty || currentFilter.days != 0
     history.update([], repositories: repositories)
     clearDetail()
     needsLog = false
@@ -442,6 +424,7 @@ import ToolCore
     let count = pages.values.reduce(0) { $0 + $1.count }
     let remaining = GitBrowser.maxLoadedCommits - count
     more.isEnabled = !moreRoots.isEmpty && remaining >= moreRoots.count && logTask == nil
+    more.isHidden = !more.isEnabled
     var parts = ["\(repositories.count) 个仓库", "\(count) 条提交"]
     if !moreRoots.isEmpty { parts.append(more.isEnabled ? "可继续加载" : "已达 2000 条展示上限，可按仓库或分支缩小范围") }
     if history.graphLimited { parts.append("部分分支图线超出展示预算") }
@@ -455,8 +438,10 @@ import ToolCore
   }
   private func clearDetail() {
     selectedCommit = nil
-    detailTitle.stringValue = "提交详情"
-    detailMeta.stringValue = "选择一条提交"
+    detailTitle.stringValue = ""
+    detailMeta.stringValue = ""
+    detailPanel?.isHidden = true
+    detailDivider?.isHidden = true
     message.string = ""
     files.update([])
   }
@@ -466,6 +451,8 @@ import ToolCore
     detailSerial += 1
     let serial = detailSerial
     selectedCommit = commit
+    detailPanel.isHidden = false
+    detailDivider.isHidden = false
     detailTitle.stringValue = String(commit.oid.prefix(10))
     detailMeta.stringValue =
       repository.location.name + "\n" + commit.author + " <" + commit.email + ">\n"

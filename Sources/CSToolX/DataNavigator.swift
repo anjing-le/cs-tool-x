@@ -275,7 +275,8 @@ private final class NavigatorTable: NSTableView {
 }
 @MainActor
 private final class NavigatorCell: NSTableCellView {
-  private let disclosure = PaperButton()
+  private let disclosure = PaperIconButton(
+    symbol: "chevron.right", label: "展开", target: nil, action: #selector(toggle))
   private let heading = Theme.label("", size: 11)
   private let detail = Theme.label("", size: 9, muted: true)
   private var inset: NSLayoutConstraint!
@@ -315,7 +316,7 @@ private final class NavigatorCell: NSTableCellView {
     detail.isHidden = node.kind != .connection
     center.constant = node.kind == .connection ? -7 : 0
     disclosure.isHidden = !node.expandable
-    disclosure.title = expanded ? "⌄" : "›"
+    disclosure.symbol = expanded ? "chevron.down" : "chevron.right"
     disclosure.setAccessibilityLabel((expanded ? "收起 " : "展开 ") + node.title)
     heading.setAccessibilityLabel(node.title)
     toolTip = String(
