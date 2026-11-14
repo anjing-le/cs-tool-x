@@ -89,3 +89,7 @@ CLI 隔离回归对 debug 和随包 release 二进制均通过：稳定 JSON/退
 使用已授权的本机真实服务器配置执行 SSH 只读标记和 SFTP 当前目录列表，均退出 0，无截断，无远端写入。未新增真实数据库 CLI、上传/下载、大目录/文件、断线续传或服务端取消验收。
 
 release 构建完整性、0.0.6 → 0.0.7 标识/公钥/feed/build 兼容、归档/feed 验签和篡改拒绝通过。对源码与 ZIP 检查本机服务器地址/密码未发现，ZIP 无连接配置。此次尚未安装替换当前 0.0.6 GUI，GUI 配置重载与冲突提示的界面交互未实测；该行为由共享存储检查、编译及测试提供当前证据。日常安装仍一份，临时应用包在完成归档后移入废纸篓；实际 OTA 安装由用户确认。
+
+[0.0.7 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43562048439) 全部通过，包括 CLI 协议/并发回归与开发包构建。[0.0.7](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.7) 已正式发布；首次发布请求因 EOF 未成功，核对仍为草稿后重试成功。公开下载初次命中不可用响应，加入唯一查询参数后用原生 URLSession 匿名取得 ZIP/校验和/feed，与本地已验签文件逐字节一致，latest feed 匹配。
+
+临时 0.0.7 构建已移入废纸篓；递归检查时额外发现 `engine/target/release/bundle/macos/Anjing DataX.app` 旧原型，确认标识 cc.anjing.datax、未运行后按既有单一客户端授权移入废纸篓。正式安装仍为 /Applications/cs-tool-x.app 0.0.6，等待用户确认 OTA 更新；未删除配置或历史 ZIP。
