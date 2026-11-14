@@ -110,8 +110,60 @@ struct Servers: ParsableCommand {
 }
 struct Profiles: ParsableCommand {
   static let configuration = CommandConfiguration(subcommands: [
-    List.self, Tree.self, Show.self, Put.self, Delete.self,
+    List.self, Tree.self, Show.self, Put.self, Delete.self, Credentials.self,
   ])
+  struct Credentials: ParsableCommand {
+    static let configuration = CommandConfiguration(subcommands: [
+      Set.self, Status.self, Clear.self,
+    ])
+    struct Set: ParsableCommand {
+      @OptionGroup var options: Options
+      @OptionGroup var source: Input
+      @Argument var id: String
+      @Option(name: .long) var ifRevision: String
+      func run() throws {
+        let profile = try findProfile(id, in: ProfileStore(directory: options.directory).load())
+        let request = try source.read()
+        try request.allow(["password", "apiKey"])
+        let credentials = ConnectionCredentials(
+          password: try request.string("password", default: ""),
+          apiKey: try request.string("apiKey", default: ""))
+        try DataCredentialStore(directory: options.directory).save(
+          credentials, for: profile, expectedRevision: ifRevision)
+        try emit(
+          .object([
+            "stored": .bool(true), "storage": .string("local-plaintext"),
+            "profileID": .string(profile.id.uuidString),
+          ]))
+      }
+    }
+    struct Status: ParsableCommand {
+      @OptionGroup var options: Options
+      @Argument var id: String
+      func run() throws {
+        let profile = try findProfile(id, in: ProfileStore(directory: options.directory).load())
+        let state = try DataCredentialStore(directory: options.directory).snapshot(for: profile)
+        let credentials = state.value
+        try emit(
+          .object([
+            "revision": .string(state.revision), "stored": .bool(credentials != nil),
+            "hasPassword": .bool(!(credentials?.password ?? "").isEmpty),
+            "hasAPIKey": .bool(!(credentials?.apiKey ?? "").isEmpty),
+          ]))
+      }
+    }
+    struct Clear: ParsableCommand {
+      @OptionGroup var options: Options
+      @Argument var id: String
+      @Option(name: .long) var ifRevision: String
+      func run() throws {
+        let profile = try findProfile(id, in: ProfileStore(directory: options.directory).load())
+        try DataCredentialStore(directory: options.directory).remove(
+          for: profile, expectedRevision: ifRevision)
+        try emit(.object(["stored": .bool(false)]))
+      }
+    }
+  }
   struct Tree: ParsableCommand {
     static let configuration = CommandConfiguration(
       abstract:

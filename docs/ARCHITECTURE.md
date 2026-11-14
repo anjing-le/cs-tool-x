@@ -9,7 +9,7 @@ macOS 14+ 的原生 Swift/AppKit 宿主，Rust 数据进程作为子进程按需
 ```mermaid
 flowchart TB
     UI[Swift / AppKit 宿主] --> Connections[连接与环境元数据]
-    Connections --> Memory[数据库凭据仅驻留当前会话内存]
+    Connections --> Memory[数据库凭据按用户选择存本机或仅会话内存]
     UI --> Data[数据工作区]
     Data --> IPC[私有 stdin / stdout：有界 JSON RPC v1]
     IPC --> Rust[Rust 数据进程]

@@ -2,54 +2,19 @@ import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-// Native hit targets let the same cursorUpdate owner resolve every button.
-struct ActionTarget: NSViewRepresentable {
-  let label: String
-  var enabled = true
-  let action: () -> Void
-  func makeCoordinator() -> Coordinator { Coordinator() }
-  func makeNSView(context: Context) -> HitButton {
-    let button = HitButton()
-    button.isBordered = false
-    button.title = ""
-    button.bezelStyle = .regularSquare
-    button.setButtonType(.momentaryChange)
-    button.target = context.coordinator
-    button.action = #selector(Coordinator.activate)
-    return button
-  }
-  func updateNSView(_ button: HitButton, context: Context) {
-    context.coordinator.action = action
-    button.isEnabled = enabled
-    button.setAccessibilityLabel(label)
-    button.toolTip = label
-  }
-  final class Coordinator: NSObject {
-    var action: (() -> Void)?
-    @objc func activate() { action?() }
-  }
-}
-final class HitButton: NSButton {
-  override init(frame: NSRect) { super.init(frame: frame) }
-  required init?(coder: NSCoder) { nil }
-  override func draw(_ dirtyRect: NSRect) {
-    if window?.firstResponder === self {
-      let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 6, yRadius: 6)
-      Theme.sage.withAlphaComponent(0.65).setStroke()
-      path.lineWidth = 2
-      path.stroke()
-    }
-  }
-}
 struct PaperAction<Content: View>: View {
   let label: String
   let action: () -> Void
+  var doubleClick = false
+  var onSelect: (() -> Void)? = nil
   @ViewBuilder let content: () -> Content
   @State private var hovered = false
   var body: some View {
     content().allowsHitTesting(false)
       .background(hovered ? Ink.main.opacity(0.055) : .clear, in: RoundedRectangle(cornerRadius: 8))
-      .overlay(ActionTarget(label: label, action: action))
+      .overlay(
+        ActionTarget(label: label, doubleClick: doubleClick, onSelect: onSelect, action: action)
+      )
       .onHover { hovered = $0 }
   }
 }

@@ -56,7 +56,7 @@ printf '%s' '{"command":"pwd"}' | cs-tool-x ssh exec 0 --timeout 10 --max-output
 printf '%s' '{"path":"."}' | cs-tool-x sftp ls 0
 ```
 
-数据库 query 输入字段为 `text`、可选 `password/apiKey/target/cursor`，catalog 支持 `text/password/apiKey`。凭据仅在该次进程内存，不写入数据库配置。`kind` 为 `mysql/pg/es/redis`，具体引擎查询语义和兼容范围沿用 [性能与兼容契约](PERFORMANCE_COMPATIBILITY.md)。
+数据库 query 输入字段为 `text`、可选 `password/apiKey/target/cursor`，catalog 支持 `text/password/apiKey`。显式提供的凭据只在该次进程内存；未提供 password/apiKey 时读取本机已保存的凭据。显式提供任一字段（包括空字符串）即覆盖整份保存凭据，不拼接旧 API Key。连接元数据仍不含凭据。`kind` 为 `mysql/pg/es/redis`，具体引擎查询语义和兼容范围沿用 [性能与兼容契约](PERFORMANCE_COMPATIBILITY.md)。
 
 ## 稳定输出与并发修改
 
@@ -80,7 +80,7 @@ printf '%s' '{"path":"."}' | cs-tool-x sftp ls 0
 
 `servers/profiles list/show` 返回整份文件的 `revision`。更新现有条目和删除必须带 `--if-revision TOKEN`；先读后改，冲突时重新读取并判断，不覆盖别人的修改。创建条目会在文件锁内合并。GUI 保存同样检查版本；切回应用时重载配置，正在编辑的表单不会被 CLI 强行覆盖，打开的会话保持原连接。GUI 出现保存冲突时先保留草稿、关闭表单并重新读取后处理。
 
-写入先落临时文件并同步，再原子替换，文件权限 0600。每份配置仅保留一个 `.backup`，也是 0600，内容可能含原有 SSH 明文密码。锁和配置各有大小/等待预算；不是跨多文件事务。旧配置直接兼容，不自动迁移到钥匙串。
+写入先落临时文件并同步，再原子替换，文件权限 0600。元数据与 SSH 配置各保留一个 `.backup`，也是 0600，内容可能含原有 SSH 明文密码。锁和配置各有大小/等待预算；不是跨多文件事务。旧配置直接兼容，不自动迁移到钥匙串。
 
 列表默认不输出密码；`servers show ID --show-secrets` 明确要求时返回本机明文密码。此选择避免普通诊断意外复制凭据，存储本身仍是用户选择的明文。远端脚本自身输出的秘密不会自动识别或脱敏。
 
@@ -110,3 +110,9 @@ CLI 暂未覆盖的能力明确说明；不要虚构已连接、已传输或已�
 0.0.8 起 `profiles tree` 返回 `connections[].identity/profiles` 与 revision；分组只是显示模型，不修改保存格式。`data browse` 输入仅接收 password/apiKey，`--level` 为 databases、schemas（PG）或 tables，tables 必须提供 `--scope`。元数据范围参数使用绑定值，不拼接 SQL；最多返回 500 行并标记截断。完整连接树约定见 [DATA_TREE.md](DATA_TREE.md)。
 
 0.0.9 起 Redis 的 `data browse --level databases` 读取 INFO keyspace，只表示有数据的 DB；未列出的空 DB 不应推断为不存在。UI 模式和本机筛选不会改变 CLI 查询、凭据或授权边界。
+
+## 0.0.10 本机预配置登录
+
+`profiles credentials status UUID` 返回保存状态、是否有密码/API Key 及凭据文件 revision，不返回秘密。`profiles credentials set UUID --if-revision REV --input -` 从 stdin 接收 `{password, apiKey}`，明确保存为本机明文；可保存空对象表示有意使用空凭据。`profiles credentials clear UUID --if-revision REV` 删除对应登录信息。同账号、地址、环境、传输策略下的不同数据库共享凭据；清除会影响这些数据库的下次连接。
+
+凭据文件独立于元数据，权限 0600，不留 `.backup`。set/clear 必须先 status 并携带 revision，冲突后重新读取。数据命令若未提供两个认证字段则使用已保存信息；显式提供任一字段会整份覆盖，不与旧凭据拼接。GUI 保存连接时可勾选本机保存，下次双击即可直连。存储是用户明确选择的明文，不声称加密。

@@ -78,7 +78,8 @@ final class Workspace: ObservableObject {
       guard let self else { return }
       do {
         let loaded = try await store.snapshot()
-        guard revision == current, reloadSerial == generation, sidebarPanel == nil, saveTask == nil else { return }
+        guard revision == current, reloadSerial == generation, sidebarPanel == nil, saveTask == nil
+        else { return }
         servers = loaded.value.servers
         groups = loaded.value.groups.isEmpty ? ["日常开发"] : loaded.value.groups
         fileRevision = loaded.revision
@@ -94,7 +95,9 @@ final class Workspace: ObservableObject {
       return searchTerms.allSatisfy { text.localizedCaseInsensitiveContains($0) }
     }
   }
+  @Published var selectedServerID: Int?
   func activate(_ server: Server) {
+    selectedServerID = server.id
     if let existing = sessions.last(where: { $0.server.id == server.id }) {
       select(existing.id)
     } else {
@@ -183,7 +186,10 @@ final class Workspace: ObservableObject {
   }
   func openLocal() { open(.localServer) }
   func newTab() { open(active?.server ?? .localServer) }
-  func select(_ id: UUID) { selected = id }
+  func select(_ id: UUID) {
+    selected = id
+    selectedServerID = active?.server.id
+  }
   func close(_ id: UUID) {
     guard let i = sessions.firstIndex(where: { $0.id == id }) else { return }
     sessions[i].stop()

@@ -84,14 +84,14 @@ struct Schema: ParsableCommand {
   static let document = """
     {"protocol":"cs-tool-x-cli","version":1,"output":"one JSON envelope on stdout; diagnostics on stderr; --help and --version are text",
      "optionsPlacement":"put options after the leaf command","configuration":"shared with GUI; atomic 0600 writes, 2s lock deadline, SHA256 revision and one .backup per file",
-     "secrets":"SSH plaintext stays in local config; read only with servers show --show-secrets. Database credentials are stdin-only per command.",
+     "secrets":"SSH plaintext stays in local config; read only with servers show --show-secrets. Database credentials can be stored explicitly in local 0600 data-credentials.json (no Keychain/backups); explicit per-command stdin fields override the saved credential as a whole.",
      "commands":[
       {"command":"doctor","effect":"local read"},{"command":"schema","effect":"local read"},
       {"command":"servers list","effect":"local read","output":"servers metadata, groups, revision; no password"},
       {"command":"servers show ID","effect":"local read","options":["--show-secrets"]},
       {"command":"servers put --input FILE|-","effect":"local write","input":{"requiredOnCreate":["name","host"],"optional":["id","user","port","group","password","notes"]},"notes":"existing ID requires --if-revision; omitted fields preserve prior values, password empty string clears it"},
       {"command":"servers delete ID --if-revision TOKEN","effect":"local write"},
-      {"command":"profiles list","effect":"local read"},{"command":"profiles tree","effect":"local read","output":"connections grouped by identity; original profiles and revision retained"},{"command":"profiles show UUID","effect":"local read"},
+      {"command":"profiles list","effect":"local read"},{"command":"profiles credentials set UUID --if-revision REV --input FILE|-","effect":"local credential write","input":{"optional":["password","apiKey"]},"notes":"explicitly stores local plaintext; absent/empty fields mean intentionally empty credentials, no Keychain"},{"command":"profiles credentials status UUID","effect":"local read, flags only"},{"command":"profiles credentials clear UUID --if-revision REV","effect":"local credential removal"},{"command":"profiles tree","effect":"local read","output":"connections grouped by identity; original profiles and revision retained"},{"command":"profiles show UUID","effect":"local read"},
       {"command":"profiles put --input FILE|-","effect":"local write","input":{"requiredOnCreate":["kind"],"optional":["id","name","environment","host","port","username","database","tls","endpoint"]},"notes":"existing UUID requires --if-revision; credentials cannot be saved"},
       {"command":"profiles delete UUID --if-revision TOKEN","effect":"local write"},
       {"command":"data query UUID --input FILE|-","effect":"remote query","input":{"required":["text"],"optional":["password","apiKey","target","cursor"]},"notes":"one-shot connection; existing engine limits and SQL read-only policy apply; no arbitrary SQL writes"},

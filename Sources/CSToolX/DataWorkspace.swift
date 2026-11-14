@@ -2,10 +2,11 @@ import AppKit
 import ToolCore
 
 @MainActor
-final class DataWorkspace: NSView, NSTextFieldDelegate {
+final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
   let profile: ConnectionProfile
   let sessionID: String
   private let engine: EngineClient
+  private var pendingPreview: [JSONValue]?
   private let editor: NSTextView
   private let editorScroll: NSScrollView
   private let resultFilter = Theme.field("筛选当前结果")
@@ -30,6 +31,8 @@ final class DataWorkspace: NSView, NSTextFieldDelegate {
   private var history: [String] = []
   private var historyMenu: PaperMenu?
   private(set) var busy = false
+  var onInteraction: (() -> Void)?
+  func textDidChange(_ notification: Notification) { onInteraction?() }
   var onBrowse: (() -> Void)?
   var onDisconnect: (() -> Void)?
 
@@ -53,12 +56,13 @@ final class DataWorkspace: NSView, NSTextFieldDelegate {
     editor.isAutomaticDashSubstitutionEnabled = false
     editor.isAutomaticSpellingCorrectionEnabled = false
     editor.isContinuousSpellCheckingEnabled = false
+    editor.delegate = self
     editor.string = profile.kind.initialQuery
     editor.setAccessibilityLabel(profile.kind == .redis ? "Redis key 模式" : "查询编辑器")
     let title = Theme.label(profile.displayName, size: 17, weight: .medium)
     let badge = Theme.label(profile.environment, size: 10, muted: true)
     disconnectButton = Theme.button("断开", target: self, action: #selector(disconnect))
-    let heading = Theme.stack([title, badge, NSView(), disconnectButton], vertical: false)
+    let heading = Theme.stack([title, badge, NSView()], vertical: false)
     let sub = Theme.label(
       profile.address, size: 11, muted: true)
     catalogButton = Theme.button(
@@ -121,7 +125,10 @@ final class DataWorkspace: NSView, NSTextFieldDelegate {
     perform(action: "query", text: editor.string, cursor: cursor)
   }
   func preview(_ row: [JSONValue]) {
-    guard !busy else { return }
+    guard !busy else {
+      pendingPreview = row
+      return
+    }
     let target: String
     if profile.kind == .mysql || profile.kind == .pg {
       guard row.count >= 2, let encoded = try? JSONEncoder().encode([row[0].text, row[1].text]),
@@ -165,6 +172,12 @@ final class DataWorkspace: NSView, NSTextFieldDelegate {
     let target = target ?? targetField.stringValue
     Task { [weak self] in
       guard let self else { return }
+      defer {
+        if let row = pendingPreview {
+          pendingPreview = nil
+          preview(row)
+        }
+      }
       do {
         let response = try await engine.run(
           id: sessionID, action: action, text: text, target: target, cursor: cursor)
@@ -230,8 +243,14 @@ final class DataWorkspace: NSView, NSTextFieldDelegate {
     runButton?.isHidden = !query
     historyButton?.isHidden = !query
   }
-  @objc private func selectBrowse() { setQueryMode(false) }
-  @objc private func selectQuery() { setQueryMode(true) }
+  @objc private func selectBrowse() {
+    onInteraction?()
+    setQueryMode(false)
+  }
+  @objc private func selectQuery() {
+    onInteraction?()
+    setQueryMode(true)
+  }
   func controlTextDidChange(_ obj: Notification) { applyResultFilter() }
   private func applyResultFilter() {
     guard let projection else { return }
@@ -259,6 +278,7 @@ final class DataWorkspace: NSView, NSTextFieldDelegate {
     }
     historyMenu?.show()
   }
+  func requestDisconnect() { disconnect() }
   @objc private func disconnect() {
     guard !busy else { return }
     setBusy(true)

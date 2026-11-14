@@ -16,6 +16,7 @@ final class DataTreeNode {
   var expandable: Bool
   var loaded = false
   var loading = false
+  var openError: String?
   var cursor: String = "0"
   var parentID: String?
   init(
@@ -226,7 +227,7 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         table.selectRowIndexes(IndexSet(integer: parent), byExtendingSelection: false)
       }
     default:
-      if node.kind == .connection { toggle(node) } else { onActivate?(node) }
+      onActivate?(node)
     }
   }
   func numberOfRows(in tableView: NSTableView) -> Int { visible.count }
@@ -258,7 +259,7 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
   @objc private func activate() {
     guard visible.indices.contains(table.clickedRow) else { return }
     let node = visible[table.clickedRow].node
-    if node.kind == .connection { toggle(node) } else { onActivate?(node) }
+    onActivate?(node)
   }
 }
 @MainActor
@@ -308,7 +309,8 @@ private final class NavigatorCell: NSTableCellView {
     inset.constant = CGFloat(8 + depth * 16)
     heading.stringValue =
       String(node.title.prefix(200)) + (node.title.count > 200 ? "…" : "")
-      + (node.loading ? " · 读取中…" : "")
+      + (node.loading
+        ? " · 读取中…" : node.openError == nil ? "" : " · " + String(node.openError!.prefix(40)))
     detail.stringValue = node.kind == .connection ? node.detail : ""
     detail.isHidden = node.kind != .connection
     center.constant = node.kind == .connection ? -7 : 0
@@ -317,7 +319,8 @@ private final class NavigatorCell: NSTableCellView {
     disclosure.setAccessibilityLabel((expanded ? "收起 " : "展开 ") + node.title)
     heading.setAccessibilityLabel(node.title)
     toolTip = String(
-      (node.detail.isEmpty ? node.title : node.title + "\n" + node.detail).prefix(2000))
+      (node.openError ?? (node.detail.isEmpty ? node.title : node.title + "\n" + node.detail))
+        .prefix(2000))
   }
   @objc private func toggle() { action?() }
 }

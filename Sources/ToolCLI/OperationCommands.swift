@@ -58,8 +58,10 @@ private func query(
       throw CLIProblem.input("This metadata level is not supported for the profile kind.")
     }
   }
-  let password = try request.string("password", default: "")
-  let apiKey = try request.string("apiKey", default: "")
+  let overridden = request.fields["password"] != nil || request.fields["apiKey"] != nil
+  let saved = overridden ? nil : try DataCredentialStore(directory: options.directory).load(for: profile)
+  let password = try request.string("password", default: saved?.password ?? "")
+  let apiKey = try request.string("apiKey", default: saved?.apiKey ?? "")
   let text = try request.string("text", default: catalog ? "*" : nil)
   let target = try request.string("target", default: "")
   let cursor = try request.string("cursor", default: "0")

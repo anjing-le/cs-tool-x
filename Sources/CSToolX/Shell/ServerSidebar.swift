@@ -113,9 +113,12 @@ struct ServerSidebar: View {
     }
   }
   private func serverRow(_ server: Server) -> some View {
-    let active = model.active?.server.id == server.id
+    let active = (model.selectedServerID ?? model.active?.server.id) == server.id
     return HStack(spacing: 0) {
-      PaperAction(label: "打开 \(server.name) SSH 会话", action: { model.activate(server) }) {
+      PaperAction(
+        label: "打开 \(server.name) SSH 会话（双击）", action: { model.activate(server) },
+        doubleClick: true, onSelect: { model.selectedServerID = server.id }
+      ) {
         HStack(alignment: .top, spacing: 8) {
           Image(systemName: "server.rack").font(.system(size: 14, weight: .light)).foregroundStyle(
             server.tint

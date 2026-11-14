@@ -68,7 +68,7 @@ extension ConnectionProfile {
   }
   public var credentialScope: String { ConnectionIdentity(self).id + ":" + transportPolicy }
 }
-public struct ConnectionCredentials: Sendable {
+public struct ConnectionCredentials: Sendable, Codable, Equatable {
   public let password: String
   public let apiKey: String
   public init(password: String = "", apiKey: String = "") {

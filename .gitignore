@@ -15,3 +15,7 @@ releases/
 node_modules/
 
 __pycache__/
+
+# User-local database authentication must never be packaged or committed.
+data-credentials.json
+data-credentials.json.*

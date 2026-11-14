@@ -30,7 +30,8 @@ public struct ConfigurationFile: Sendable {
   public static let missingRevision = "missing"
   public static let maxBytes = 1024 * 1024
   public let url: URL
-  public init(url: URL) { self.url = url }
+  private let keepsBackup: Bool
+  public init(url: URL, keepsBackup: Bool = true) { self.url = url; self.keepsBackup = keepsBackup }
   private func data() throws -> Data? {
     guard FileManager.default.fileExists(atPath: url.path) else { return nil }
     let attrs = try FileManager.default.attributesOfItem(atPath: url.path)
@@ -108,7 +109,7 @@ public struct ConfigurationFile: Sendable {
       let encoder = JSONEncoder()
       encoder.outputFormatting = [.sortedKeys]
       let bytes = try encoder.encode(value)
-      if let before {
+      if let before, keepsBackup {
         try ConfigurationFile(url: url.appendingPathExtension("backup")).replace(before)
       }
       try replace(bytes)

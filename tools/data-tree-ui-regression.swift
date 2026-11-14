@@ -33,9 +33,37 @@ import ToolCore
     table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
     key(124)
     precondition(table.numberOfRows == 4, "Right arrow expands selected connection")
+    var activations = 0
+    nav.onActivate = { node in
+      precondition(node === root)
+      activations += 1
+    }
     key(36)
     precondition(
-      table.numberOfRows == 2, "Enter on a connection toggles expansion without a network action")
+      table.numberOfRows == 4 && activations == 1,
+      "Enter opens selected connection without collapsing it")
+    key(123)
+    precondition(table.numberOfRows == 2, "Left arrow collapses without opening")
+    nav.onActivate = nil
+    let hit = HitButton(frame: NSRect(x: 0, y: 0, width: 100, height: 30))
+    let target = GestureTarget()
+    hit.requiredClicks = 2
+    hit.target = target
+    hit.action = #selector(GestureTarget.open)
+    hit.selectionHandler = { target.selections += 1 }
+    func click(_ count: Int) {
+      hit.mouseDown(
+        with: NSEvent.mouseEvent(
+          with: .leftMouseDown, location: .zero, modifierFlags: [], timestamp: 0, windowNumber: 0,
+          context: nil, eventNumber: count, clickCount: count, pressure: 1)!)
+    }
+    click(1)
+    precondition(target.selections == 1 && target.opens == 0, "Shell single click selects only")
+    click(2)
+    precondition(target.opens == 1, "Shell second click opens exactly once")
+    hit.isEnabled = false
+    click(2)
+    precondition(target.opens == 1, "Disabled target cannot open")
     nav.expand(root)
     precondition(
       table.numberOfRows == 4 && root.children.count == 2, "Database children under one connection")
@@ -168,4 +196,10 @@ import ToolCore
       "PASS: actual AppKit navigator grouping, four-level expansion, row construction, expansion retention, disconnect invalidation and original-record preservation (offscreen; no live-app interaction)"
     )
   }
+}
+
+@MainActor final class GestureTarget: NSObject {
+  var opens = 0
+  var selections = 0
+  @objc func open() { opens += 1 }
 }

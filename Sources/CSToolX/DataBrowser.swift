@@ -19,18 +19,16 @@ final class DataBrowser: NSView, NSTextFieldDelegate {
   var onRefresh: (() -> Void)?
   var onQuery: (() -> Void)?
   var onBack: (() -> Void)?
-  var onEdit: (() -> Void)?
 
   override init(frame: NSRect) {
     super.init(frame: frame)
     let browse = Theme.button("浏览", target: nil, action: #selector(noop)) as! PaperButton
     browse.selected = true
     let query = Theme.button("查询", target: self, action: #selector(query))
-    let edit = Theme.button("连接设置", target: self, action: #selector(edit))
     back = Theme.button("‹", target: self, action: #selector(goBack))
     back.setAccessibilityLabel("返回上级目录")
     refresh = Theme.button("刷新", target: self, action: #selector(reload))
-    let heading = Theme.stack([back, titleLabel, NSView(), edit], vertical: false, spacing: 10)
+    let heading = Theme.stack([back, titleLabel, NSView()], vertical: false, spacing: 10)
     heading.detachesHiddenViews = true
     let modes = Theme.stack([browse, query, NSView()], vertical: false, spacing: 6)
     let controls = Theme.stack([filter, count, refresh], vertical: false, spacing: 12)
@@ -67,8 +65,10 @@ final class DataBrowser: NSView, NSTextFieldDelegate {
     refresh.isEnabled = !node.loading
     refresh.title = node.loading ? "读取中…" : "刷新"
     allNodes = node.children
-    empty.stringValue = node.loading ? "正在读取…" : node.loaded ? "没有可见对象" : "点击刷新以连接并读取目录"
-    empty.isHidden = !allNodes.isEmpty
+    empty.stringValue = node.loading ? "正在读取…" : node.loaded ? "没有可见对象" : "双击左侧对象打开"
+    if let error = node.openError { empty.stringValue = error }
+    empty.maximumNumberOfLines = 2
+    empty.isHidden = node.openError == nil && !allNodes.isEmpty
     if node.kind == .connection, kind == .es {
       table.setColumns(["索引", "健康", "文档数", "大小"], widths: [320, 85, 110, 110])
     } else if node.kind == .database, kind == .redis {
@@ -104,5 +104,4 @@ final class DataBrowser: NSView, NSTextFieldDelegate {
   @objc private func query() { onQuery?() }
   @objc private func reload() { onRefresh?() }
   @objc private func goBack() { onBack?() }
-  @objc private func edit() { onEdit?() }
 }

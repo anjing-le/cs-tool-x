@@ -67,7 +67,9 @@ for line in sys.stdin:
  r=json.loads(line);m=r['method']
  with open({str(log)!r},'a') as f:f.write(m+'\\n')
  if m=='hello':v={{'protocol':1}}
- elif m=='connect':v={{'id':'fixture-session','elapsedMs':1}}
+ elif m=='connect':
+  Path({str(directory/'credential-check')!r}).write_text(str(r['params'].get('password')=='stored-fixture-secret')+':'+str(r['params'].get('apiKey','')==''))
+  v={{'id':'fixture-session','elapsedMs':1}}
  elif m=='run':v={{'columns':['number'],'rows':[['9007199254740993']],'elapsedMs':1,'truncated':False,'note':'fixture'}}
  else:v=None
  print(json.dumps({{'id':r['id'],'ok':True,'result':v}}),flush=True)
@@ -88,6 +90,19 @@ for line in sys.stdin:
     browse=call(['data','browse',pid,'--level','tables','--scope',"quote'schema",'--engine',str(fake)],{'password':'ephemeral-test-password'})
     assert browse['output']['rows'][0][0]=='9007199254740993'
     call(['data','query',pid,'--engine','/missing/fixture-engine'],{'text':'SELECT 1'},status=5)
+    credential_state=call(['profiles','credentials','status',pid]);assert not credential_state['stored']
+    call(['profiles','credentials','set',pid,'--if-revision',credential_state['revision']],{'password':'stored-fixture-secret'})
+    call(['profiles','credentials','set',pid,'--if-revision',credential_state['revision']],{'password':'stale'},status=4)
+    saved_state=call(['profiles','credentials','status',pid]);assert saved_state['stored'] and saved_state['hasPassword']
+    assert 'stored-fixture-secret' not in json.dumps(saved_state)
+    call(['data','query',pid,'--engine',str(fake)],{'text':'SELECT 1'})
+    assert (directory/'credential-check').read_text()=='True:True'
+    call(['data','query',pid,'--engine',str(fake)],{'text':'SELECT 1','apiKey':''})
+    assert (directory/'credential-check').read_text()=='False:True','explicit blank overrides saved password'
+    assert (directory/'data-credentials.json').stat().st_mode & 0o777 == 0o600
+    call(['profiles','credentials','clear',pid,'--if-revision',saved_state['revision']])
+    assert not call(['profiles','credentials','status',pid])['stored']
+    assert not (directory/'data-credentials.json.backup').exists()
     call(['profiles','delete',pid,'--if-revision',prev])
     assert call(['profiles','list'])['profiles']==[]
     latest=call(['servers','list'])

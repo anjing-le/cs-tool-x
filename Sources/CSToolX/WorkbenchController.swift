@@ -12,6 +12,9 @@ final class WorkbenchController: NSWindowController {
   private var reloadSerial = 0
   private var temporary: [ConnectionProfile] = []
   private var dataViews: [UUID: DataWorkspace] = [:]
+  private var openGate = DataOpenGate()
+  private var openTasks: [UUID: Task<Void, Never>] = [:]
+  private var connectionMenu: PaperMenu?
   private var credentials: [String: ConnectionCredentials] = [:]
   private let navigator = DataNavigator()
   private let connectionPicker = PaperSelect()
@@ -36,7 +39,7 @@ final class WorkbenchController: NSWindowController {
   private var header: NSStackView!
   private var headerHeight: NSLayoutConstraint!
   private let title = Theme.label("", size: 11, muted: true)
-  private let footer = Theme.label("凭据仅在本次会话保留", size: 10, muted: true)
+  private let footer = Theme.label("双击打开 · 回车打开", size: 10, muted: true)
   var onCheckUpdates: (() -> Void)?
   init(engine: EngineClient) {
     self.engine = engine
@@ -111,7 +114,9 @@ final class WorkbenchController: NSWindowController {
     connectionPicker.setAccessibilityLabel("切换数据连接")
     connectionPicker.onChange(target: self, action: #selector(selectConnection))
     connectionPicker.widthAnchor.constraint(greaterThanOrEqualToConstant: 210).isActive = true
-    let heading = Theme.stack([connectionPicker, NSView(), add], vertical: false)
+    let menu = Theme.button("•••", target: self, action: #selector(connectionActions(_:)))
+    menu.toolTip = "连接设置与会话管理"
+    let heading = Theme.stack([connectionPicker, NSView(), add, menu], vertical: false)
     let side = Theme.stack(
       [
         heading, Theme.label("连接 / 库 / Schema / 对象", size: 10, muted: true), navigator.scroll,
@@ -146,6 +151,7 @@ final class WorkbenchController: NSWindowController {
     Theme.pin(view, to: container)
   }
   @objc func goHome() {
+    openGate.navigate()
     selectedModule = nil
     header.isHidden = true
     headerHeight.constant = 0
@@ -155,6 +161,7 @@ final class WorkbenchController: NSWindowController {
     display(homeHost!, in: body)
   }
   private func showModule(_ module: ToolModule) {
+    openGate.navigate()
     selectedModule = module
     header.isHidden = false
     headerHeight.constant = 43
@@ -231,15 +238,19 @@ final class WorkbenchController: NSWindowController {
       connectionPicker.selectItem(at: index)
     }
     navigator.filterConnection(selectedConnectionID)
-    footer.stringValue = "\(groups.count) 个连接"
+    footer.stringValue = "\(groups.count) 个连接 · 双击或回车打开"
     if let browser, dataContent.subviews.contains(where: { $0 === browser }) {
-      if let id = browserNodeID, let node = navigator.node(id) { showTreeOverview(node) }
-      else if let id = selectedConnectionID, let root = navigator.root(id) { showTreeOverview(root) }
+      if let id = browserNodeID, let node = navigator.node(id) {
+        showTreeOverview(node)
+      } else if let id = selectedConnectionID, let root = navigator.root(id) {
+        showTreeOverview(root)
+      }
     }
   }
   @objc private func selectConnection() {
     let index = connectionPicker.indexOfSelectedItem
     guard connectionChoices.indices.contains(index) else { return }
+    openGate.navigate()
     let id = connectionChoices[index].id
     selectedConnectionID = id
     selectedProfile =
@@ -247,7 +258,7 @@ final class WorkbenchController: NSWindowController {
     navigator.filterConnection(id)
     if let root = navigator.root(id) {
       navigator.expand(root)
-      showTreeOverview(root)
+      openNode(root)
     }
   }
   private func dataWelcome() {
@@ -267,60 +278,50 @@ final class WorkbenchController: NSWindowController {
     display(view, in: dataContent)
   }
   @objc private func newConnection() { showConnection(profile: nil) }
-  private func showConnection(profile: ConnectionProfile?, browse: DataTreeNode? = nil) {
+  private func showConnection(
+    profile: ConnectionProfile?, browse: DataTreeNode? = nil, credentialsOnly: Bool = false
+  ) {
+    guard window?.attachedSheet == nil else { return }
+    openGate.navigate()
+    let navigation = openGate.navigationRevision
+    Task { [weak self] in
+      guard let self else { return }
+      do {
+        let authentication = try await Task.detached {
+          try profile.flatMap { try DataCredentialStore().load(for: $0) }
+        }.value
+        guard openGate.navigationRevision == navigation, selectedModule == .data else { return }
+        presentConnection(
+          profile: profile, browse: browse, credentialsOnly: credentialsOnly,
+          authentication: authentication)
+      } catch { Theme.error(error, window: window) }
+    }
+  }
+  private func presentConnection(
+    profile: ConnectionProfile?, browse: DataTreeNode?, credentialsOnly: Bool,
+    authentication: ConnectionCredentials?
+  ) {
     guard let window, window.attachedSheet == nil else { return }
+    if let profile, openGate.isPending(profile.id) { return }
     if let profile, dataViews[profile.id] != nil {
       Theme.error(ToolError.message("请先断开当前会话，再修改连接设置。"), window: window)
       return
     }
-    guard dataViews.count < 4 else {
+    guard dataViews.count + openGate.pendingCount < 4 else {
       Theme.error(ToolError.message("最多同时保留 4 个数据会话，请先断开一个。"), window: window)
       return
     }
     let sheet = ConnectionSheet(
       engine: engine, profile: profile,
-      credentials: profile.flatMap { credentials[$0.credentialScope] },
-      saveByDefault: profile == nil || profiles.contains(where: { $0.id == profile?.id }))
+      credentials: authentication ?? profile.flatMap { credentials[$0.credentialScope] },
+      saveByDefault: profile == nil || profiles.contains(where: { $0.id == profile?.id }),
+      credentialsOnly: credentialsOnly)
     connectionSheet = sheet
     sheet.onConnected = { [weak self] profile, id, elapsed, save, authentication in
       guard let self else { return }
-      let workspace = DataWorkspace(
-        profile: profile, sessionID: id, elapsed: elapsed, engine: engine)
-      credentials[profile.credentialScope] = authentication
-      dataViews[profile.id] = workspace
-      selectedProfile = profile.id
-      selectedConnectionID = ConnectionIdentity(profile).id
-      workspace.onBrowse = { [weak self] in self?.browseWorkspace(profile) }
-      workspace.onDisconnect = { [weak self] in self?.closed(profile.id) }
-      if save {
-        if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
-          profiles[index] = profile
-        } else {
-          profiles.append(profile)
-        }
-        let snapshot = profiles
-        profileSaveSerial += 1
-        let saveSerial = profileSaveSerial
-        let previous = profileSaveTask
-        profileSaveTask = Task {
-          await previous?.value
-          let expected = self.profileRevision
-          do {
-            self.profileRevision = try await Task.detached {
-              try ProfileStore().save(snapshot, expectedRevision: expected)
-            }.value
-          } catch {
-            Theme.error(
-              ToolError.message("已连接，但配置保存失败：\(error.localizedDescription)"), window: window)
-          }
-          if self.profileSaveSerial == saveSerial { self.profileSaveTask = nil }
-        }
-      } else {
-        temporary.removeAll { $0.id == profile.id }
-        temporary.append(profile)
-      }
-      refreshConnections()
-      display(workspace, in: dataContent)
+      let workspace = installWorkspace(
+        profile, id: id, elapsed: elapsed, save: save, authentication: authentication,
+        presents: true)
       connectionSheet = nil
       if let browse, let current = navigator.node(browse.id) {
         navigator.expand(current)
@@ -329,12 +330,81 @@ final class WorkbenchController: NSWindowController {
     }
     window.beginSheet(sheet.window!)
   }
+  @discardableResult
+  private func installWorkspace(
+    _ profile: ConnectionProfile, id: String, elapsed: Int, save: Bool,
+    authentication: ConnectionCredentials, presents: Bool
+  ) -> DataWorkspace {
+    let workspace = DataWorkspace(
+      profile: profile, sessionID: id, elapsed: elapsed, engine: engine)
+    credentials[profile.credentialScope] = authentication
+    dataViews[profile.id] = workspace
+    if presents {
+      selectedProfile = profile.id
+      selectedConnectionID = ConnectionIdentity(profile).id
+    }
+    workspace.onInteraction = { [weak self] in self?.openGate.navigate() }
+    workspace.onBrowse = { [weak self] in self?.browseWorkspace(profile) }
+    workspace.onDisconnect = { [weak self] in self?.closed(profile.id) }
+    if save {
+      if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
+        profiles[index] = profile
+      } else {
+        profiles.append(profile)
+      }
+      let snapshot = profiles
+      profileSaveSerial += 1
+      let saveSerial = profileSaveSerial
+      let previous = profileSaveTask
+      profileSaveTask = Task {
+        await previous?.value
+        let expected = self.profileRevision
+        do {
+          self.profileRevision = try await Task.detached {
+            try ProfileStore().save(snapshot, expectedRevision: expected)
+          }.value
+        } catch {
+          Theme.error(
+            ToolError.message("已连接，但配置保存失败：\(error.localizedDescription)"), window: self.window)
+        }
+        if self.profileSaveSerial == saveSerial { self.profileSaveTask = nil }
+      }
+    } else if !profiles.contains(where: { $0.id == profile.id }) {
+      temporary.removeAll { $0.id == profile.id }
+      temporary.append(profile)
+    }
+    refreshConnections()
+    if presents { display(workspace, in: dataContent) }
+    return workspace
+  }
+  @objc private func connectionActions(_ sender: NSButton) {
+    connectionMenu?.dismiss()
+    connectionMenu = PaperMenu(titles: ["新建连接", "编辑连接", "断开当前连接"], anchor: sender) {
+      [weak self] index in
+      guard let self else { return }
+      if index == 0 {
+        newConnection()
+        return
+      }
+      guard let id = selectedConnectionID,
+        let group = connectionChoices.first(where: { $0.id == id })
+      else { return }
+      if index == 1, let profile = group.profiles.first { showConnection(profile: profile) }
+      if index == 2 {
+        for workspace in dataViews.values where ConnectionIdentity(workspace.profile).id == id {
+          workspace.requestDisconnect()
+        }
+      }
+    }
+    connectionMenu?.show()
+  }
   private func closed(_ id: UUID) {
     browseContexts.removeValue(forKey: id)
     let groupID = dataViews[id].map { ConnectionIdentity($0.profile).id }
     dataViews.removeValue(forKey: id)
     if let groupID,
-      !dataViews.values.contains(where: { ConnectionIdentity($0.profile).id == groupID })
+      !dataViews.values.contains(where: { ConnectionIdentity($0.profile).id == groupID }),
+      !openGate.contains(groupID: groupID)
     {
       credentials = credentials.filter { !$0.key.hasPrefix(groupID + ":") }
       navigator.invalidateGroup(groupID)
@@ -348,7 +418,7 @@ final class WorkbenchController: NSWindowController {
     } else {
       dataWelcome()
     }
-    if dataViews.isEmpty { Task { await engine.stop() } }
+    if dataViews.isEmpty && openGate.pendingCount == 0 { Task { await engine.stop() } }
   }
   @objc private func checkUpdates() { onCheckUpdates?() }
   func newShellTab() {
@@ -383,6 +453,9 @@ final class WorkbenchController: NSWindowController {
     return false
   }
   func stopAll() {
+    openTasks.values.forEach { $0.cancel() }
+    openTasks.removeAll()
+    openGate.clear()
     credentials.removeAll()
     shellModel?.stop()
     fileView?.stop()
@@ -392,23 +465,22 @@ final class WorkbenchController: NSWindowController {
 
 extension WorkbenchController {
   private func selectedTreeNode(_ node: DataTreeNode) {
-    if [.table, .index, .key, .more].contains(node.kind) {
-      activateTreeNode(node)
-      return
-    }
-    showTreeOverview(node)
+    // Selection does not connect or replace the current editor.
   }
   private func expandedTreeNode(_ node: DataTreeNode) {
     guard !node.loaded, !node.loading else { return }
-    if node.kind == .connection, node.profile?.kind != .es { return }
-    activateTreeNode(node)
+    openNode(node, presents: false)
   }
-  private func activateTreeNode(_ node: DataTreeNode) {
-    if node.kind == .message { return }
-    if node.kind == .more, let parentID = node.parentID, let parent = navigator.node(parentID) {
-      if let profile = parent.profile, let workspace = dataViews[profile.id] {
-        loadTree(parent, workspace: workspace, cursor: node.cursor)
-      }
+  private func activateTreeNode(_ node: DataTreeNode) { openNode(node) }
+  private func openNode(_ node: DataTreeNode, query: Bool = false, presents: Bool = true) {
+    guard navigator.isCurrent(node), node.kind != .message, window?.attachedSheet == nil else {
+      return
+    }
+    if node.kind == .more, let parentID = node.parentID, let parent = navigator.node(parentID),
+      let profile = parent.profile, let workspace = dataViews[profile.id]
+    {
+      openGate.navigate()
+      loadTree(parent, workspace: workspace, cursor: node.cursor, presents: presents)
       return
     }
     guard let profile = node.profile else { return }
@@ -418,15 +490,92 @@ extension WorkbenchController {
       : dataViews[profile.id]
     if let workspace {
       guard node.kind == .connection || workspace.profile == profile else {
-        Theme.error(ToolError.message("该配置已修改，请先断开旧会话后重新连接。"), window: window)
+        node.openError = "连接设置已更改，请从左侧菜单断开旧会话后重试。"
+        if presents { showTreeOverview(node) }
         return
       }
+      if presents { openGate.navigate() }
+      presentNode(node, workspace: workspace, query: query, presents: presents)
+      return
+    }
+    do {
+      let first = try openGate.begin(
+        profile: profile, nodeID: node.id, query: query, presents: presents, active: dataViews.count
+      )
+      node.openError = "正在连接…"
+      if presents { showTreeOverview(node) }
+      guard first else { return }
+      openTasks[profile.id] = Task { [weak self] in
+        guard let self else { return }
+        defer {
+          openTasks.removeValue(forKey: profile.id)
+          @MainActor func clearOpening(_ nodes: [DataTreeNode]) {
+            for node in nodes {
+              if node.profile?.id == profile.id && node.openError == "正在连接…" {
+                node.openError = nil
+                navigator.changed(node)
+                refreshBrowser(node)
+              }
+              clearOpening(node.children)
+            }
+          }
+          clearOpening(navigator.roots)
+        }
+        do {
+          let cached = credentials[profile.credentialScope]
+          let authentication = try await Task.detached {
+            try cached ?? DataCredentialStore().load(for: profile)
+          }.value
+          try Task.checkCancellation()
+          guard let authentication else {
+            guard let request = openGate.finish(profile.id), openGate.isCurrent(request),
+              selectedModule == .data, let current = navigator.node(request.nodeID)
+            else { return }
+            showConnection(profile: profile, browse: current, credentialsOnly: true)
+            return
+          }
+          let (sessionID, elapsed) = try await engine.connect(
+            profile: profile, password: authentication.password, apiKey: authentication.apiKey)
+          guard !Task.isCancelled, let request = openGate.finish(profile.id),
+            let current = navigator.node(request.nodeID), current.profile == profile
+          else {
+            try? await engine.disconnect(id: sessionID)
+            return
+          }
+          let visible = request.presents && openGate.isCurrent(request) && selectedModule == .data
+          let workspace = installWorkspace(
+            profile, id: sessionID, elapsed: elapsed, save: false, authentication: authentication,
+            presents: visible)
+          presentNode(current, workspace: workspace, query: request.query, presents: visible)
+        } catch {
+          guard let request = openGate.finish(profile.id),
+            let current = navigator.node(request.nodeID)
+          else { return }
+          current.openError = "连接失败：" + error.localizedDescription
+          navigator.changed(current)
+          if request.presents && openGate.isCurrent(request) && selectedModule == .data {
+            showTreeOverview(current)
+          }
+        }
+      }
+    } catch {
+      node.openError = error.localizedDescription
+      if presents { showTreeOverview(node) }
+    }
+  }
+  private func presentNode(
+    _ node: DataTreeNode, workspace: DataWorkspace, query: Bool, presents: Bool
+  ) {
+    node.openError = nil
+    if presents {
       selectedProfile = workspace.profile.id
+      selectedConnectionID = node.groupID
+      if query { workspace.showQuery() }
       display(workspace, in: dataContent)
+    }
+    if !query {
       if node.expandable { navigator.expand(node) }
-      loadTree(node, workspace: workspace)
-    } else {
-      showConnection(profile: profile, browse: node)
+      loadTree(node, workspace: workspace, presents: presents)
     }
   }
   private func browseWorkspace(_ profile: ConnectionProfile) {
@@ -458,22 +607,12 @@ extension WorkbenchController {
     }
     browser.onBack = { [weak self, weak node] in
       guard let self, let id = node?.parentID, let parent = navigator.node(id) else { return }
+      openGate.navigate()
       showTreeOverview(parent)
     }
     browser.onQuery = { [weak self, weak node] in
-      guard let self, let node, let profile = node.profile else { return }
-      let active = dataViews[profile.id]
-      if let active {
-        selectedProfile = active.profile.id
-        active.showQuery()
-        display(active, in: dataContent)
-      } else {
-        showConnection(profile: profile)
-      }
-    }
-    browser.onEdit = { [weak self, weak node] in
-      guard let profile = node?.profile else { return }
-      self?.showConnection(profile: profile)
+      guard let node else { return }
+      self?.openNode(node, query: true)
     }
     var names = [node.title]
     var current = node
@@ -513,10 +652,16 @@ extension WorkbenchController {
   private func treeMessage(_ title: String, in node: DataTreeNode) -> DataTreeNode {
     DataTreeNode(id: node.id + "/message", kind: .message, title: title, groupID: node.groupID)
   }
-  private func loadTree(_ node: DataTreeNode, workspace: DataWorkspace, cursor: String = "0") {
-    guard navigator.isCurrent(node), !node.loading else { return }
+  private func loadTree(
+    _ node: DataTreeNode, workspace: DataWorkspace, cursor: String = "0", presents: Bool = true
+  ) {
+    guard navigator.isCurrent(node) else { return }
+    if node.loading {
+      if presents { showTreeOverview(node) }
+      return
+    }
     if [.table, .index, .key].contains(node.kind) {
-      workspace.preview(node.object)
+      if presents { workspace.preview(node.object) }
       return
     }
     guard !workspace.busy else {
@@ -555,7 +700,7 @@ extension WorkbenchController {
     browseContexts[profile.id] = node.id
     node.loading = true
     navigator.changed(node)
-    showTreeOverview(node)
+    if presents { showTreeOverview(node) }
     Task { [weak self, weak node, weak workspace] in
       guard let self, let node, let workspace else { return }
       defer {
@@ -636,7 +781,7 @@ extension WorkbenchController {
       } catch {
         guard navigator.isCurrent(node) else { return }
         node.loading = false
-        Theme.error(error, window: window)
+        node.openError = error.localizedDescription
         navigator.changed(node)
       }
     }
