@@ -18,3 +18,5 @@
 - 本机日常入口只保留 /Applications/cs-tool-x.app。用户已要求清理 Dev、旧 DataX 与构建备份的可运行副本；不再额外启动或固定 Dev。后续构建仅作临时产物，结束后清理多余 .app，历史发布保留 ZIP；不得删除连接配置、个人指针或发布私钥。常规 OTA 安装仍由用户确认。本次图标更换与收敛为一个正式安装已获用户授权。图标原始附件 assets/AppIcon-original.png；生产图标 assets/AppIcon.png 是去掉外部奶油色底块的透明图案。不得添加任何背景、圆角底板或图标 bezel，保留袋子/铃铛/口袋完整轮廓与内部白色。使用 scripts/make-icon.py 打包。
 
 - 运行中 Dock 必须在主线程启动回调中把原始透明 DockIcon.png 设为 NSApp.applicationIconImage；构建从生产 PNG 原样复制，不只配置 ICNS。PNG/ICNS alpha 检查不能替代实际 Dock 显示验收。退出后固定项及 Finder 是不同显示路径，分别报告，不全局清理图标缓存或新增轮询。
+
+- 长期迭代的性能/兼容契约见 docs/PERFORMANCE_COMPATIBILITY.md：驱动随引擎编译，实际版本/来源用 tools/dependency-inventory.py 从锁文件生成，构建严格锁定；不得把驱动支持等同于应用兼容。展示上限不等于接收/进程内存/服务端开销上限，超时不等于已取消。新增文件查看须按字节范围读取；tail 行数不能替代字节/时间预算。功能扩展前优先完成极端输出、大单值、取消与连接复用的隔离压测。未实测项保持未验收，不生成虚构指标或默认自动定期维护。

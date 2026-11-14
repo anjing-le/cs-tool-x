@@ -76,3 +76,5 @@ MIT License。依赖与分发说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTI
 本机只保留 `/Applications/cs-tool-x.app` 一个日常入口，不额外安装或固定 Dev。构建时的 `.app` 是临时产物，验证后清理；历史发布保留 ZIP。图标透明版本在 `assets/AppIcon.png`，原始附件保存在 `assets/AppIcon-original.png`，执行 `python3 scripts/make-icon.py` 可重新打包 ICNS。
 
 运行中的 Dock 图标由启动回调直接加载透明 `DockIcon.png`，基础 ICNS 保留为回退；退出后的固定项、Finder 显示另行验证。
+
+性能边界、驱动来源、实际验证范围与尚未完成的兼容/压力测试见 [长期性能与兼容契约](docs/PERFORMANCE_COMPATIBILITY.md)。执行 `python3 tools/dependency-inventory.py` 可查看锁定的实际组件版本、来源与校验和；应用不在运行时下载数据库驱动。

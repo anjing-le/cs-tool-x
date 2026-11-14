@@ -14,6 +14,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: 1.93.1
+      - name: Locked dependency inventory
+        run: python3 tools/dependency-inventory.py
       - name: Rust engine
         run: |
           cargo test --locked --manifest-path engine/Cargo.toml
@@ -21,7 +23,7 @@ jobs:
       - name: Native tests and worker protocol
         env:
           CSTOOLX_ENGINE: ${{ github.workspace }}/engine/target/debug/cs-tool-engine
-        run: swift test --disable-keychain
+        run: swift test --disable-keychain --force-resolved-versions
       - name: Cursor ownership regression
         run: |
           mkdir -p .local

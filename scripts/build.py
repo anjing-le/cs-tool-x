@@ -33,10 +33,10 @@ def main():
     key=(ROOT/'Resources/update-public-key.txt').read_text().strip()
     if len(base64.b64decode(key,validate=True))!=32: raise ValueError('Invalid OTA public key.')
     if not args.development: signing_key_file()
-    run(['cargo','build','--manifest-path',ROOT/'engine/Cargo.toml']+(['--release'] if args.configuration=='release' else []))
+    run(['cargo','build','--locked','--manifest-path',ROOT/'engine/Cargo.toml']+(['--release'] if args.configuration=='release' else []))
     run(['python3',ROOT/'scripts/collect-licenses.py'])
-    run(['swift','build','--disable-keychain','-c',args.configuration,'--product','CSToolX'],cwd=ROOT)
-    bin_dir=Path(subprocess.check_output(['swift','build','--disable-keychain','-c',args.configuration,'--show-bin-path'],cwd=ROOT,text=True).strip())
+    run(['swift','build','--disable-keychain','--force-resolved-versions','-c',args.configuration,'--product','CSToolX'],cwd=ROOT)
+    bin_dir=Path(subprocess.check_output(['swift','build','--disable-keychain','--force-resolved-versions','-c',args.configuration,'--show-bin-path'],cwd=ROOT,text=True).strip())
     framework=ROOT/'.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework'
     args.output.mkdir(parents=True,exist_ok=True)
     app=args.output/('cs-tool-x Dev.app' if args.development else 'cs-tool-x.app')
