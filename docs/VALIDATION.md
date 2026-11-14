@@ -206,3 +206,13 @@ Git 侧栏移除展开按钮和常驻分支副标题，使用整行双击展开/
 用户工具箱原附件保留于 assets/AppIcon-original.png；生产图标的 RGB 与原图逐像素一致，仅把 Alpha=1 的近透明残留归零，提手镂空和工具内部白色保留。通过 ImageIO RGBA 导出、sips 多尺寸和 iconutil 打包，不加入底色、底板、外框或投影。运行时继续通过主线程 NSApp.applicationIconImage 直接加载包内原始 DockIcon.png；PNG 与 ICNS 检查、实际运行中 Dock、退出后入口和 Finder 显示分别验收。
 
 本机已确认旧扫描把 .build/checkouts/Sparkle、.build/repositories/Sparkle-09d89c53 及 dist 历史发布副本读成仓库；已调整默认范围，排除常见依赖/缓存/产物目录，显式选根仍允许查看，正常嵌套仓库保持。未删除磁盘上的依赖、历史产物或项目。
+
+28 项原生测试通过（1 项隔离数据库 fixture 条件跳过），候选包 CLI、只读 Git、安装器、数据树及 Git 离屏组件检查通过。主体 RGB 与附件逐像素一致，仅 Alpha=1 归零；ICNS 的 10 个表示保留透明，大尺寸提手镂空为零 Alpha，小尺寸边缘保留正常抗锯齿。ZIP 内 Dock PNG/ICNS 与验证素材字节一致。
+
+同一真实父目录一次对比：旧版发现 253 个仓库、访问 250000 个条目并触顶；新范围本次发现 85 个仓库、访问 103558 个条目、2631 ms，limited=false，生成目录内 Sparkle/历史发布副本未进入结果。这是本次范围结果，不是项目总数或跨机器性能承诺。
+
+[最终 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43616444287) 全部通过，[0.0.16 正式发布](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.16) 指向 a7bfef1。公开 ZIP、校验和及签名 feed 字节匹配本机验签文件，latest feed 指向 0.0.16；更新身份、公钥、feed、版本/build 及篡改拒绝检查通过。临时 .app 与隔离 Git UI 仓库已移入废纸篓，未新增安装或启动第二个客户端。
+
+用户完成 OTA 后明确确认：运行中 Dock、退出后的 Dock 固定入口和 Finder 图标三处均无底板。此显示验收来自用户现场核对，未声称由窗口自动化完成；没有观察到需要报告的平台显示限制。
+
+实际安装核对为 0.0.16（16），Info.plist、GUI/CLI/引擎和透明 Dock PNG 匹配发布 ZIP，严格 codesign、doctor/schema、本地真实 Git 分支/历史/详情检查通过。安装后的默认扫描再次得到 85 个仓库且未触顶，无生成目录的 Sparkle 条目。四个数据连接和保存凭据、69 条原始配置归档保留；已检查目录仅一个客户端，Dock 固定项与 GUI 进程各一个。
