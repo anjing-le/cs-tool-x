@@ -1,6 +1,6 @@
 # Git 仓库浏览
 
-首页第三个入口是 Git。打开目录后，左侧展示各仓库的当前分支及本地分支、远程分支、标签；中间展示按真实父关系绘制的彩色提交图、引用标签、提交信息、作者、日期、哈希；右侧显示所选提交说明及变更文件。选中的目录会保存在本机，下次进入恢复读取。
+首页第三个入口是 Git。打开目录后，左侧展示各仓库的当前分支及本地分支、远程分支、标签；中间展示按真实父关系绘制的彩色提交图、引用标签和提交信息；选中提交后，右侧显示作者、日期、哈希、提交说明及变更文件。选中的目录会保存在本机，下次进入恢复读取。
 
 采用 [IDEA Git Log](https://www.jetbrains.com/help/idea/log-tab.html) 的三栏组织和标签含义：当前 HEAD 黄色、本地分支绿色、远程分支紫色，仓库使用稳定颜色条区分。外框及控件仍采用本项目的暖纸张/PaperControls。实现为独立 AppKit/ToolCore 代码，没有嵌入 IntelliJ Platform/JVM，没有复制 JetBrains 品牌资产，不声称逐像素等同于某个 IDEA 版本。源码调研包括 JetBrains 的 GraphCommitCellRenderer、LabelPainter、PrintElementGenerator；未移植其代码。
 
