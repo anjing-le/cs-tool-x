@@ -98,6 +98,19 @@ import ToolCore
     let identityFields = allViews(workspace).compactMap { $0 as? NSTextField }
     precondition(identityFields.contains { $0.stringValue == subjectCell.author && $0.isSelectable }, "Author identity is prominent and copyable")
     precondition(identityFields.contains { $0.stringValue == "fixture@example.invalid" || $0.stringValue.contains("@") }, "Author email is shown directly")
+    let authorField = identityFields.first { $0.stringValue == subjectCell.author && $0.isSelectable }!
+    let emailField = identityFields.first { $0.identifier?.rawValue == "git-author-email" }!
+    let originalEmail = emailField.stringValue
+    emailField.stringValue = "example.with.a.long.author.name+123456789@users.noreply.github.com"
+    workspace.needsLayout = true
+    workspace.layoutSubtreeIfNeeded()
+    let emailRect = emailField.convert(emailField.bounds, to: workspace)
+    let authorRect = authorField.convert(authorField.bounds, to: workspace)
+    precondition(!emailRect.intersects(authorRect) && emailRect.height >= 30,
+      "Long email has its own wrapping row without colliding with author identity")
+    emailField.stringValue = originalEmail
+    workspace.needsLayout = true
+    workspace.layoutSubtreeIfNeeded()
     let summary = allViews(workspace).compactMap { $0 as? GitFileSummaryView }.first!
     precondition(summary.summary.files == 1 && summary.summary.known == 1 && !summary.pending,
       "File statistics finish after the initial detail list")
@@ -134,6 +147,13 @@ import ToolCore
     precondition(
       files.frame.width <= files.enclosingScrollView!.contentSize.width + 1,
       "Path table has no automatic horizontal inset overflow")
+    let summaryRect = summary.convert(summary.bounds, to: workspace)
+    let filesRect = files.convert(files.bounds, to: workspace)
+    precondition(abs(summaryRect.minX - filesRect.minX) < 1 && abs(summaryRect.maxX - filesRect.maxX) < 1,
+      "Summary and file rows share a viewport for numeric column alignment")
+    emailField.stringValue = "demo.author+1234567@users.noreply.github.com"
+    workspace.needsLayout = true
+    workspace.layoutSubtreeIfNeeded()
     if CommandLine.arguments.count > 2 {
       window.layoutIfNeeded()
       let rep = workspace.bitmapImageRepForCachingDisplay(in: workspace.bounds)!

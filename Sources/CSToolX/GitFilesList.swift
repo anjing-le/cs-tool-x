@@ -49,6 +49,19 @@ struct GitFileSummary: Sendable {
     added = a; removed = d; overflow = exceeded
   }
 }
+/// Shared right-aligned numeric columns for both the summary and file rows.
+struct GitFileColumns {
+  let name: NSRect, added: NSRect, removed: NSRect
+  init(width: CGFloat, y: CGFloat) {
+    let trailing: CGFloat = 8, column: CGFloat = 46, gap: CGFloat = 8
+    let deletedX = width - trailing - column
+    let addedX = deletedX - gap - column
+    name = NSRect(x: 34, y: y, width: max(0, addedX - 42), height: 18)
+    added = NSRect(x: addedX, y: y, width: column, height: 18)
+    removed = NSRect(x: deletedX, y: y, width: column, height: 18)
+  }
+  static let numberFont = NSFont.monospacedSystemFont(ofSize: 10, weight: .regular)
+}
 @MainActor final class GitFileSummaryView: NSView {
   var summary = GitFileSummary([]) { didSet { needsDisplay = true; updateAccessibility() } }
   var pending = false { didSet { needsDisplay = true; updateAccessibility() } }
@@ -60,25 +73,25 @@ struct GitFileSummary: Sendable {
     setAccessibilityLabel(toolTip)
   }
   override func draw(_ dirtyRect: NSRect) {
+    let columns = GitFileColumns(width: bounds.width, y: 5)
     let p = NSMutableParagraphStyle(); p.lineBreakMode = .byTruncatingTail
     let title = pending && summary.files == 0 ? "读取文件…" : error != nil && summary.files == 0 ? "文件读取失败" : partial ? "已显示 \(summary.files)" : "\(summary.files) 文件"
-    (title as NSString).draw(in: NSRect(x: 0, y: 5, width: bounds.width * 0.34, height: 20),
+    (title as NSString).draw(in: columns.name,
       withAttributes: [.font: Theme.font(12, weight: .medium), .foregroundColor: Theme.ink, .paragraphStyle: p])
-    var text: [(String, NSColor)] = []
-    if pending { text = [("行数读取中…", Theme.muted)] }
-    else if error != nil || summary.known != summary.files { text = [("统计不可用", Theme.muted)] }
-    else {
-      if summary.files > summary.binary {
-        text += [("+\(summary.added)", Theme.sage), ("−\(summary.removed)", GitPalette.lines[4])]
+    p.alignment = .right
+    var note: String?
+    if pending { note = "行数读取中…" }
+    else if error != nil || summary.known != summary.files { note = "统计不可用" }
+    else if summary.overflow { note = "统计值过大" }
+    else if summary.files == summary.binary && summary.binary > 0 { note = "\(summary.binary) 二进制" }
+    if let note {
+      (note as NSString).draw(in: columns.added.union(columns.removed),
+        withAttributes: [.font: Theme.font(10), .foregroundColor: Theme.muted, .paragraphStyle: p])
+    } else if summary.files > 0 {
+      for (text, rect, color) in [("+\(summary.added)", columns.added, Theme.sage), ("−\(summary.removed)", columns.removed, GitPalette.lines[4])] {
+        (text as NSString).draw(in: rect,
+          withAttributes: [.font: GitFileColumns.numberFont, .foregroundColor: color, .paragraphStyle: p])
       }
-      if summary.binary > 0 { text.append(("\(summary.binary) 二进制", Theme.muted)) }
-      if summary.overflow { text = [("统计值过大", Theme.muted)] }
-    }
-    let available = bounds.width * 0.65
-    let slot = available / CGFloat(max(1, text.count))
-    for (i, item) in text.enumerated() {
-      (item.0 as NSString).draw(in: NSRect(x: bounds.width * 0.35 + CGFloat(i) * slot, y: 5, width: slot - 4, height: 20),
-        withAttributes: [.font: Theme.font(11), .foregroundColor: item.1, .paragraphStyle: p])
     }
   }
 }
@@ -147,7 +160,9 @@ struct GitFileSummary: Sendable {
     defer { NSGraphicsContext.restoreGraphicsState() }
     let change = row.change
     let tint = GitPalette.lines[row.glyph.color]
-    let iconY = (bounds.height - 21) / 2
+    let nameY = bounds.height - 23
+    let iconY = nameY - 3
+    let columns = GitFileColumns(width: bounds.width, y: nameY)
     let outline = NSBezierPath()
     outline.move(to: NSPoint(x: 4, y: iconY)); outline.line(to: NSPoint(x: 4, y: iconY + 21))
     outline.line(to: NSPoint(x: 16, y: iconY + 21)); outline.line(to: NSPoint(x: 23, y: iconY + 14))
@@ -161,23 +176,20 @@ struct GitFileSummary: Sendable {
     (status as NSString).draw(in: NSRect(x: 20, y: iconY - 4, width: 10, height: 13),
       withAttributes: [.font: Theme.font(10, weight: .medium), .foregroundColor: color])
     let style = NSMutableParagraphStyle(); style.lineBreakMode = .byTruncatingMiddle
-    let nameY = row.directory.isEmpty ? (bounds.height - 16) / 2 : bounds.height - 20
-    let statsWidth: CGFloat = change.binary == true ? 47 : 80
-    let width = max(0, bounds.width - 37 - statsWidth)
-    (row.name as NSString).draw(in: NSRect(x: 34, y: nameY, width: width, height: 17),
+    (row.name as NSString).draw(in: columns.name,
       withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 11, weight: .regular), .foregroundColor: Theme.ink, .paragraphStyle: style])
     if !row.directory.isEmpty {
       (row.directory as NSString).draw(in: NSRect(x: 34, y: 5, width: bounds.width - 39, height: 15),
         withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 9, weight: .regular), .foregroundColor: Theme.muted, .paragraphStyle: style])
     }
-    let statsX = bounds.width - statsWidth
+    style.alignment = .right
     if change.binary == true || change.additions == nil {
-      ((change.binary == true ? "二进制" : "…") as NSString).draw(in: NSRect(x: statsX, y: nameY, width: statsWidth - 4, height: 17),
+      ((change.binary == true ? "二进制" : "…") as NSString).draw(in: columns.added.union(columns.removed),
         withAttributes: [.font: Theme.font(10), .foregroundColor: Theme.muted, .paragraphStyle: style])
     } else {
-      for (text, x, color) in [("+\(change.additions!)", statsX, Theme.sage), ("−\(change.deletions ?? 0)", statsX + 39, GitPalette.lines[4])] {
-        (text as NSString).draw(in: NSRect(x: x, y: nameY, width: 37, height: 17),
-          withAttributes: [.font: NSFont.monospacedSystemFont(ofSize: 9, weight: .regular), .foregroundColor: color, .paragraphStyle: style])
+      for (text, rect, color) in [("+\(change.additions!)", columns.added, Theme.sage), ("−\(change.deletions ?? 0)", columns.removed, GitPalette.lines[4])] {
+        (text as NSString).draw(in: rect,
+          withAttributes: [.font: GitFileColumns.numberFont, .foregroundColor: color, .paragraphStyle: style])
       }
     }
   }

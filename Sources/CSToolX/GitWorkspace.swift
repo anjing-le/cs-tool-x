@@ -40,6 +40,9 @@ import ToolCore
   private var sidebarWidth: NSLayoutConstraint!
   private var detailsWidth: NSLayoutConstraint!
   private var messageHeight: NSLayoutConstraint!
+  private var emailHeight: NSLayoutConstraint!
+  private var measuredEmail = ""
+  private var measuredEmailWidth: CGFloat = 0
   private var measuredMessageWidth: CGFloat = 0
   private var summaryNeedsLayout = true
   private var pages: [String: [GitCommit]] = [:]
@@ -177,11 +180,16 @@ import ToolCore
   }
   required init?(coder: NSCoder) { nil }
   private func makeDetailPanel() -> NSView {
-    detailTitle.font = Theme.font(18, weight: .medium)
+    detailTitle.font = Theme.font(16, weight: .medium)
     detailTitle.isSelectable = true
     detailTitle.setAccessibilityLabel("提交作者")
     detailEmail.isSelectable = true
-    detailEmail.lineBreakMode = .byTruncatingMiddle
+    detailEmail.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+    detailEmail.maximumNumberOfLines = 2
+    detailEmail.lineBreakMode = .byCharWrapping
+    detailEmail.identifier = NSUserInterfaceItemIdentifier("git-author-email")
+    emailHeight = detailEmail.heightAnchor.constraint(equalToConstant: 17)
+    emailHeight.isActive = true
     detailEmail.setAccessibilityLabel("提交作者邮箱")
     authorMark.widthAnchor.constraint(equalToConstant: 34).isActive = true
     authorMark.heightAnchor.constraint(equalToConstant: 34).isActive = true
@@ -195,7 +203,7 @@ import ToolCore
     message.font = Theme.font(14)
     message.textColor = Theme.ink
     message.drawsBackground = false
-    message.textContainerInset = NSSize(width: 5, height: 8)
+    message.textContainerInset = NSSize(width: 0, height: 5)
     message.isHorizontallyResizable = false
     message.isVerticallyResizable = true
     message.textContainer?.widthTracksTextView = true
@@ -213,17 +221,18 @@ import ToolCore
     messageHeight.isActive = true
     let close = PaperIconButton(
       symbol: "xmark", label: "收起详情", target: self, action: #selector(closeDetail))
-    let identity = Theme.stack([detailTitle, detailEmail], spacing: 1)
-    for field in [detailTitle, detailEmail] {
-      field.widthAnchor.constraint(equalTo: identity.widthAnchor).isActive = true
-    }
-    let heading = Theme.stack([authorMark, identity, close], vertical: false, spacing: 9)
+    let heading = Theme.stack([authorMark, detailTitle, NSView(), close], vertical: false, spacing: 10)
+    detailTitle.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     let stack = Theme.stack(
-      [heading, detailMeta, messageScroll, fileSummary, files.scroll], spacing: 6)
+      [heading, detailEmail, detailMeta, messageScroll, fileSummary, files.scroll], spacing: 8)
+    stack.setCustomSpacing(10, after: heading)
+    stack.setCustomSpacing(14, after: detailEmail)
+    stack.setCustomSpacing(14, after: detailMeta)
+    stack.setCustomSpacing(12, after: messageScroll)
     heading.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
     files.table.headerView = nil
-    stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 12, right: 14)
-    for view in [detailMeta, messageScroll, fileSummary, files.scroll] {
+    stack.edgeInsets = NSEdgeInsets(top: 18, left: 14, bottom: 12, right: 14)
+    for view in [detailEmail, detailMeta, messageScroll, fileSummary, files.scroll] {
       view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
     }
     files.scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 100).isActive = true
@@ -241,7 +250,16 @@ import ToolCore
     }
     super.layout()
     guard detailPanel != nil, !detailPanel.isHidden else { return }
-    let width = max(100, detailPanel.bounds.width - 48)
+    let emailWidth = max(100, detailPanel.bounds.width - 28)
+    if measuredEmail != detailEmail.stringValue || abs(emailWidth - measuredEmailWidth) > 1 {
+      measuredEmail = detailEmail.stringValue
+      measuredEmailWidth = emailWidth
+      let height = (measuredEmail as NSString).boundingRect(
+        with: NSSize(width: emailWidth, height: 100), options: [.usesLineFragmentOrigin],
+        attributes: [.font: detailEmail.font!]).height
+      emailHeight.constant = height > 18 ? 34 : 17
+    }
+    let width = max(100, detailPanel.bounds.width - 38)
     if summaryNeedsLayout || abs(width - measuredMessageWidth) > 2 {
       measuredMessageWidth = width
       summaryNeedsLayout = false

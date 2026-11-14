@@ -65,3 +65,7 @@ Git 两侧分栏可以拖动调整，松开后记住宽度，窗口缩小时限�
 CLI git show 新增 files[].additions/deletions/binary、filesLimited 和 statisticsError；缺少计数字段表示未读取/不可用。原 oid/message/files/limited 保留，具体含义见当前 schema。
 
 身份来源与环境覆盖规则参考 [Git commit 文档](https://git-scm.com/docs/git-commit)，numstat、NUL 路径及二进制计数语义参考 [Git diff-options 文档](https://git-scm.com/docs/diff-options)。本项目具体数据来源和限制以实际代码为准。
+
+## 0.0.18 留白与对齐
+
+姓名与关闭控件单行，邮箱独立使用整栏宽度、最多两行；邮箱保留等宽标识排版和完整提示/复制，姓名、邮箱、时间与说明之间分段留白。仅在邮箱内容或栏宽变化时测量高度。文件汇总和文件行复用同一数字列几何与等宽字体，增删列右对齐，图标/文件名按行顶部对齐，目录在次行。读取行为、预算和统计语义不变。
