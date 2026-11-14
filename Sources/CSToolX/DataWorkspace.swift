@@ -21,7 +21,7 @@ final class DataWorkspace: NSView {
   private var history: [String] = []
   private var historyMenu: PaperMenu?
   private(set) var busy = false
-  var onCatalog: ((QueryOutput) -> Void)?
+  var onBrowse: (() -> Void)?
   var onDisconnect: (() -> Void)?
 
   init(profile: ConnectionProfile, sessionID: String, elapsed: Int, engine: EngineClient) {
@@ -93,7 +93,7 @@ final class DataWorkspace: NSView {
       ? ns.substring(with: range) : editor.string
     perform(action: "query", text: text)
   }
-  @objc private func catalog() { perform(action: "catalog", text: "*") }
+  @objc private func catalog() { onBrowse?() }
   @objc private func nextBatch() {
     guard let cursor = output?.nextCursor, cursor != "0" else { return }
     perform(action: "query", text: editor.string, cursor: cursor)
@@ -140,7 +140,6 @@ final class DataWorkspace: NSView {
         }.value
         setBusy(false)
         if action == "catalog" {
-          onCatalog?(response)
           status.stringValue = "目录 \(response.rows.count) 项 · \(response.elapsedMs) ms"
         } else {
           output = response

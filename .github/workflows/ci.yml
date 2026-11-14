@@ -34,5 +34,9 @@ jobs:
           mkdir -p .local
           swiftc -parse-as-library Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift tools/cursor-regression.swift -o .local/cursor-regression
           .local/cursor-regression
+      - name: Data tree component regression
+        run: |
+          swiftc -parse-as-library -I .build/debug/Modules Sources/CSToolX/Theme.swift Sources/CSToolX/PaperControls.swift Sources/CSToolX/WorkbenchWindow.swift Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift Sources/CSToolX/DataNavigator.swift .build/debug/ToolCore.build/*.o tools/data-tree-ui-regression.swift -o .local/data-tree-ui-regression
+          .local/data-tree-ui-regression
       - name: Native development bundle
         run: python3 scripts/build.py --development --configuration debug

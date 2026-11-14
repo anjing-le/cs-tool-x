@@ -105,3 +105,13 @@ release 构建完整性、0.0.6 → 0.0.7 标识/公钥/feed/build 兼容、归�
 CLI 临时新增 fixture.invalid 配置后重启 GUI，可见该条目；通过 revision 删除后再次重启，仅保留原服务器。原服务器/分组/密码的 JSON 值完全一致，未尝试连接测试主机。UI 工具切换前台未能提供可靠的重新激活证据，因此这里只确认重启读取共享配置，不声称热重载验收。当前保持正式客户端打开且没有会话。
 
 已递归检查 /Applications、用户 Applications、project、Documents、Downloads、Desktop，匹配正式/Dev/DataX Bundle ID 的应用仅 /Applications/cs-tool-x.app。Dock 中一个对应固定项，运行中一个 GUI 进程，无遗留随包数据 worker。当前交互 shell 能找到 ~/.local/bin/cs-tool-x；未修改 shell 启动文件。
+
+## 0.0.8 分层连接树
+
+显示层按连接身份合并原配置，不修改保存格式、源 UUID、数据库名和传输策略。新增 MySQL/PG databases、PG schemas、按范围 tables 元数据操作，以及 CLI profiles tree / data browse。根连接下保留来源详情；树按需展开、带缓存总量与单次目录上限。
+
+本机 Swift 19 项全部通过（本轮启动隔离 fixture，未跳过大帧检查）；Rust 含隔离适配器联调通过，新增数据库/Schema/表及恶意 scope 绑定检查。CLI 协议回归通过。真实 AppKit 离屏组件检查覆盖连接合并、四层展开、主题行构建、刷新保留展开状态、断开清缓存与过期节点拒绝；初次断言误把未展开的 Redis DB 节点计入可见行数量，修正测试后通过，没有把该断言错误归为产品问题。
+
+本机已有配置的全部 UUID 与原文件 SHA-256 在验证前后保持一致。通过新引擎实际读取 PG 可见库、Schema、目标 Schema 的表，MySQL 可见库与指定库的表；含 SQL 语法的 scope 返回空范围。Redis 有界 SCAN 与 ES 索引目录通过。只读取元数据或无匹配 Key，不执行真实目标 DDL/写入；详细目标、数量和配置只保留本机 ignored 验证记录，不进入公开仓库。
+
+正式 0.0.8 构建与随包 CLI 回归通过，随包新引擎的真实只读目录验证通过；0.0.7 → 0.0.8 标识/公钥/feed/build 兼容、归档/feed Ed25519 验签与篡改拒绝通过。源码与 ZIP 对本机测试目标/密码字面量扫描未发现，ZIP 不含连接配置。当前窗口自动化工具不可用，尚未将离屏组件检查描述为安装后界面验收；实际安装与点击验收状态另行记录。

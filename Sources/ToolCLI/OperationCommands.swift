@@ -4,13 +4,31 @@ import ToolCore
 
 struct DataCommands: ParsableCommand {
   static let configuration = CommandConfiguration(
-    commandName: "data", subcommands: [Query.self, Catalog.self])
+    commandName: "data", subcommands: [Query.self, Catalog.self, Browse.self])
   struct Query: AsyncParsableCommand {
     @OptionGroup var options: Options
     @OptionGroup var source: Input
     @Argument var id: String
     func run() async throws {
       try await query(id: id, options: options, request: source.read(), catalog: false)
+    }
+  }
+  struct Browse: AsyncParsableCommand {
+    @OptionGroup var options: Options
+    @OptionGroup var source: Input
+    @Argument var id: String
+    @Option(name: .long, help: "SQL metadata level: databases, schemas (PG), tables.") var level:
+      String = "databases"
+    @Option(name: .long, help: "Database (MySQL tables) or schema (PG tables).") var scope: String =
+      ""
+    func run() async throws {
+      guard ["databases", "schemas", "tables"].contains(level), level != "tables" || !scope.isEmpty
+      else {
+        throw CLIProblem.input("Choose databases, schemas, or tables with --scope.")
+      }
+      try await query(
+        id: id, options: options, request: source.read(), catalog: true, browseAction: level,
+        scope: scope)
     }
   }
   struct Catalog: AsyncParsableCommand {
@@ -22,10 +40,19 @@ struct DataCommands: ParsableCommand {
     }
   }
 }
-private func query(id: String, options: Options, request: Request, catalog: Bool) async throws {
+private func query(
+  id: String, options: Options, request: Request, catalog: Bool, browseAction: String? = nil,
+  scope: String = ""
+) async throws {
   try request.allow(
-    catalog ? ["password", "apiKey", "text"] : ["password", "apiKey", "text", "target", "cursor"])
+    browseAction != nil
+      ? ["password", "apiKey"]
+      : catalog
+        ? ["password", "apiKey", "text"] : ["password", "apiKey", "text", "target", "cursor"])
   let profile = try findProfile(id, in: ProfileStore(directory: options.directory).load())
+  if browseAction != nil, ![DatabaseKind.mysql, .pg].contains(profile.kind) {
+    throw CLIProblem.input("data browse supports MySQL and PostgreSQL metadata.")
+  }
   let password = try request.string("password", default: "")
   let apiKey = try request.string("apiKey", default: "")
   let text = try request.string("text", default: catalog ? "*" : nil)
@@ -36,7 +63,8 @@ private func query(id: String, options: Options, request: Request, catalog: Bool
     let (session, elapsed) = try await engine.connect(
       profile: profile, password: password, apiKey: apiKey)
     let output = try await engine.run(
-      id: session, action: catalog ? "catalog" : "query", text: text, target: target, cursor: cursor
+      id: session, action: browseAction ?? (catalog ? "catalog" : "query"), text: text,
+      target: browseAction == nil ? target : scope, cursor: cursor
     )
     try await engine.disconnect(id: session)
     await engine.stop()

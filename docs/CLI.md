@@ -33,7 +33,9 @@ swift build --disable-keychain --force-resolved-versions --product cs-tool-x
 | --- | --- |
 | `schema` / `doctor` | 机器可读的命令说明；本地路径、组件与配置数量检查，无网络连接 |
 | `servers list/show/put/delete` | SSH/SFTP 共享服务器配置 |
+| `profiles tree` | 按连接身份分组返回原配置，原 UUID 保留；不连接远端 |
 | `profiles list/show/put/delete` | MySQL、PG、ES、Redis 连接元数据 |
+| `data browse UUID --level databases/schemas/tables` | MySQL/PG 分层元数据；tables 用 `--scope` 指定 MySQL 库或 PG Schema |
 | `data query/catalog UUID` | 使用现有引擎执行单次查询或目录读取，SQL 仍为只读模式 |
 | `ssh exec ID` | 执行远端 sh 脚本，返回有界 stdout/stderr 和退出码 |
 | `sftp ls ID` | 列目录，返回系统 SFTP 文本输出，尚非结构化文件对象 |
@@ -104,3 +106,5 @@ CLI 暂未覆盖的能力明确说明；不要虚构已连接、已传输或已�
 ```
 
 验证：`python3 tools/cli-regression.py --binary .build/debug/cs-tool-x` 使用临时目录与模拟引擎，覆盖输入/协议、秘密字段、并发与版本冲突，不接触真实服务。Core 测试另覆盖双路输出、超时、退出码和文件权限。实际远端验证单列于 [VALIDATION.md](VALIDATION.md)。
+
+0.0.8 起 `profiles tree` 返回 `connections[].identity/profiles` 与 revision；分组只是显示模型，不修改保存格式。`data browse` 输入仅接收 password/apiKey，`--level` 为 databases、schemas（PG）或 tables，tables 必须提供 `--scope`。元数据范围参数使用绑定值，不拼接 SQL；最多返回 500 行并标记截断。完整连接树约定见 [DATA_TREE.md](DATA_TREE.md)。

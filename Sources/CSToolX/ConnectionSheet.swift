@@ -20,8 +20,11 @@ final class ConnectionSheet: NSWindowController {
   private var submit: NSButton!
   private var cancel: NSButton!
   private var busy = false
-  var onConnected: ((ConnectionProfile, String, Int, Bool, String?) -> Void)?
-  init(engine: EngineClient, profile: ConnectionProfile? = nil) {
+  var onConnected: ((ConnectionProfile, String, Int, Bool, ConnectionCredentials) -> Void)?
+  init(
+    engine: EngineClient, profile: ConnectionProfile? = nil,
+    credentials: ConnectionCredentials? = nil
+  ) {
     self.engine = engine
     self.profile = profile ?? ConnectionProfile()
     let window = CursorSheetWindow(
@@ -96,6 +99,8 @@ final class ConnectionSheet: NSWindowController {
     for i in order.indices { order[i].nextKeyView = order[(i + 1) % order.count] }
     window.initialFirstResponder = nameField
     fill()
+    passwordField.stringValue = credentials?.password ?? ""
+    apiKeyField.stringValue = credentials?.apiKey ?? ""
   }
 
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
@@ -163,7 +168,9 @@ final class ConnectionSheet: NSWindowController {
         let result = try await engine.connect(profile: profile, password: password, apiKey: apiKey)
         busy = false
         closeSheet()
-        onConnected?(profile, result.0, result.1, save, nil)
+        onConnected?(
+          profile, result.0, result.1, save,
+          ConnectionCredentials(password: password, apiKey: apiKey))
       } catch {
         busy = false
         submit.isEnabled = true

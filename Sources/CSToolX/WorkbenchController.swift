@@ -12,7 +12,10 @@ final class WorkbenchController: NSWindowController {
   private var reloadSerial = 0
   private var temporary: [ConnectionProfile] = []
   private var dataViews: [UUID: DataWorkspace] = [:]
-  private var catalogs: [UUID: QueryOutput] = [:]
+  private var credentials: [String: ConnectionCredentials] = [:]
+  private let navigator = DataNavigator()
+  private var overviewTable: TextTable?
+  private var discoveryProfiles: [String: ConnectionProfile] = [:]
   private var selectedProfile: UUID?
   private var selectedModule: ToolModule?
   private var shellModel: Workspace?
@@ -28,8 +31,6 @@ final class WorkbenchController: NSWindowController {
   private var header: NSStackView!
   private var headerHeight: NSLayoutConstraint!
   private let title = Theme.label("", size: 11, muted: true)
-  private let connectionList = TextTable(headers: ["连接"], widths: [205], header: false)
-  private let objectList = TextTable(headers: ["对象"], widths: [205], header: false)
   private let footer = Theme.label("凭据仅在本次会话保留", size: 10, muted: true)
   var onCheckUpdates: (() -> Void)?
   init(engine: EngineClient) {
@@ -68,12 +69,9 @@ final class WorkbenchController: NSWindowController {
     ])
     root.installDragRegion()
     prepareDataModule()
-    connectionList.onSelect = { [weak self] row in self?.selectProfile(row) }
-    objectList.onSelect = { [weak self] row in
-      guard let self, let id = selectedProfile, let catalog = catalogs[id], row < catalog.rows.count
-      else { return }
-      dataViews[id]?.preview(catalog.rows[row])
-    }
+    navigator.onSelect = { [weak self] node in self?.selectedTreeNode(node) }
+    navigator.onExpand = { [weak self] node in self?.expandedTreeNode(node) }
+    navigator.onActivate = { [weak self] node in self?.activateTreeNode(node) }
     goHome()
     reloadConfiguration()
   }
@@ -109,15 +107,15 @@ final class WorkbenchController: NSWindowController {
       [Theme.label("数据", size: 17, weight: .medium), NSView(), add], vertical: false)
     let side = Theme.stack(
       [
-        heading, Theme.label("连接", size: 10, muted: true), connectionList.scroll, Theme.separator(),
-        Theme.label("表 / 索引 / Keys", size: 11, muted: true), objectList.scroll, footer,
+        heading, Theme.label("连接 / 库 / Schema / 对象", size: 10, muted: true), navigator.scroll,
+        footer,
       ], spacing: 14)
     Theme.pin(side, to: context, inset: 16)
-    for view in [heading, connectionList.scroll, objectList.scroll, footer] {
+    for view in [heading, navigator.scroll, footer] {
       view.widthAnchor.constraint(equalTo: side.widthAnchor).isActive = true
     }
-    context.widthAnchor.constraint(equalToConstant: 245).isActive = true
-    connectionList.scroll.heightAnchor.constraint(equalToConstant: 200).isActive = true
+    context.widthAnchor.constraint(equalToConstant: 330).isActive = true
+    navigator.scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 200).isActive = true
     for view in [context, dataContent] {
       view.translatesAutoresizingMaskIntoConstraints = false
       dataRoot.addSubview(view)
@@ -158,7 +156,6 @@ final class WorkbenchController: NSWindowController {
     case .data:
       display(dataRoot, in: body)
       refreshConnections()
-      refreshObjects()
       if let id = selectedProfile, let view = dataViews[id] {
         display(view, in: dataContent)
       } else {
@@ -209,33 +206,9 @@ final class WorkbenchController: NSWindowController {
     fileView = nil
   }
   private func refreshConnections() {
-    connectionList.update(
-      listedProfiles.map { ["\(dataViews[$0.id] == nil ? "○" : "●") \($0.displayName)"] })
-  }
-  private func refreshObjects() {
-    guard let id = selectedProfile, let catalog = catalogs[id] else {
-      objectList.update([])
-      return
-    }
-    let kind = dataViews[id]?.profile.kind
-    objectList.update(
-      catalog.rows.map { row in
-        if kind == .mysql || kind == .pg, row.count >= 2 {
-          return ["\(row[0].text).\(row[1].text)"]
-        }
-        return [row.first?.text ?? ""]
-      })
-  }
-  private func selectProfile(_ row: Int) {
-    guard row < listedProfiles.count else { return }
-    let profile = listedProfiles[row]
-    if let view = dataViews[profile.id] {
-      selectedProfile = profile.id
-      display(view, in: dataContent)
-      refreshObjects()
-    } else {
-      showConnection(profile: profile)
-    }
+    let groups = ConnectionGroup.build(listedProfiles)
+    navigator.update(groups)
+    footer.stringValue = "\(groups.count) 个连接 · \(profiles.count) 条原配置 · 按需读取"
   }
   private func dataWelcome() {
     let view = NSView()
@@ -254,28 +227,31 @@ final class WorkbenchController: NSWindowController {
     display(view, in: dataContent)
   }
   @objc private func newConnection() { showConnection(profile: nil) }
-  private func showConnection(profile: ConnectionProfile?) {
+  private func showConnection(profile: ConnectionProfile?, browse: DataTreeNode? = nil) {
     guard let window, window.attachedSheet == nil else { return }
     guard dataViews.count < 4 else {
       Theme.error(ToolError.message("最多同时保留 4 个数据会话，请先断开一个。"), window: window)
       return
     }
-    let sheet = ConnectionSheet(engine: engine, profile: profile)
+    let sheet = ConnectionSheet(
+      engine: engine, profile: profile,
+      credentials: profile.flatMap { credentials[$0.credentialScope] })
     connectionSheet = sheet
-    sheet.onConnected = { [weak self] profile, id, elapsed, save, _ in
+    sheet.onConnected = { [weak self] profile, id, elapsed, save, authentication in
       guard let self else { return }
       let workspace = DataWorkspace(
         profile: profile, sessionID: id, elapsed: elapsed, engine: engine)
+      credentials[profile.credentialScope] = authentication
       dataViews[profile.id] = workspace
       selectedProfile = profile.id
-      workspace.onCatalog = { [weak self] output in
-        self?.catalogs[profile.id] = output
-        self?.refreshObjects()
-      }
+      workspace.onBrowse = { [weak self] in self?.browseWorkspace(profile) }
       workspace.onDisconnect = { [weak self] in self?.closed(profile.id) }
       if save {
-        profiles.removeAll { $0.id == profile.id }
-        profiles.append(profile)
+        if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
+          profiles[index] = profile
+        } else {
+          profiles.append(profile)
+        }
         let snapshot = profiles
         profileSaveSerial += 1
         let saveSerial = profileSaveSerial
@@ -298,19 +274,28 @@ final class WorkbenchController: NSWindowController {
         temporary.append(profile)
       }
       refreshConnections()
-      refreshObjects()
       display(workspace, in: dataContent)
       connectionSheet = nil
+      if let browse, let current = navigator.node(browse.id) {
+        navigator.expand(current)
+        loadTree(current, workspace: workspace)
+      }
     }
     window.beginSheet(sheet.window!)
   }
   private func closed(_ id: UUID) {
+    let groupID = dataViews[id].map { ConnectionIdentity($0.profile).id }
     dataViews.removeValue(forKey: id)
-    catalogs.removeValue(forKey: id)
+    if let groupID,
+      !dataViews.values.contains(where: { ConnectionIdentity($0.profile).id == groupID })
+    {
+      credentials = credentials.filter { !$0.key.hasPrefix(groupID + ":") }
+      navigator.invalidateGroup(groupID)
+      discoveryProfiles = discoveryProfiles.filter { !$0.key.hasPrefix(groupID + ":") }
+    }
     temporary.removeAll { $0.id == id }
     if selectedProfile == id { selectedProfile = nil }
     refreshConnections()
-    refreshObjects()
     if let selectedProfile, let active = dataViews[selectedProfile] {
       display(active, in: dataContent)
     } else {
@@ -351,8 +336,280 @@ final class WorkbenchController: NSWindowController {
     return false
   }
   func stopAll() {
+    credentials.removeAll()
     shellModel?.stop()
     fileView?.stop()
     Task { await engine.stop() }
   }
+}
+
+extension WorkbenchController {
+  private func selectedTreeNode(_ node: DataTreeNode) {
+    if [.table, .index, .key, .more].contains(node.kind) {
+      activateTreeNode(node)
+      return
+    }
+    if node.kind != .connection, let profile = node.profile, let workspace = dataViews[profile.id] {
+      selectedProfile = profile.id
+      display(workspace, in: dataContent)
+    } else {
+      showTreeOverview(node)
+    }
+  }
+  private func expandedTreeNode(_ node: DataTreeNode) {
+    guard !node.loaded, !node.loading else { return }
+    if node.kind == .connection, node.profile?.kind != .es { return }
+    activateTreeNode(node)
+  }
+  private func activateTreeNode(_ node: DataTreeNode) {
+    if node.kind == .message { return }
+    if node.kind == .more, let parentID = node.parentID, let parent = navigator.node(parentID) {
+      if let profile = parent.profile, let workspace = dataViews[profile.id] {
+        loadTree(parent, workspace: workspace, cursor: node.cursor)
+      }
+      return
+    }
+    if node.kind == .connection, node.profile?.kind == .redis {
+      navigator.expand(node)
+      showTreeOverview(node)
+      return
+    }
+    guard let profile = node.profile else { return }
+    let workspace =
+      node.kind == .connection
+      ? dataViews.values.first(where: { ConnectionIdentity($0.profile).id == node.groupID })
+      : dataViews[profile.id]
+    if let workspace {
+      guard node.kind == .connection || workspace.profile == profile else {
+        Theme.error(ToolError.message("该配置已修改，请先断开旧会话后重新连接。"), window: window)
+        return
+      }
+      selectedProfile = workspace.profile.id
+      display(workspace, in: dataContent)
+      if node.expandable { navigator.expand(node) }
+      loadTree(node, workspace: workspace)
+    } else {
+      showConnection(profile: profile, browse: node)
+    }
+  }
+  private func browseWorkspace(_ profile: ConnectionProfile) {
+    let rootID = ConnectionIdentity(profile).id
+    guard let root = navigator.root(rootID) else { return }
+    if profile.kind == .es {
+      activateTreeNode(root)
+      return
+    }
+    if let node = root.children.first(where: { $0.profile?.database == profile.database }) {
+      activateTreeNode(node)
+    }
+  }
+  private func showTreeOverview(_ node: DataTreeNode) {
+    let group = ConnectionGroup.build(listedProfiles).first { $0.id == node.groupID }
+    let view = NSView()
+    let title = Theme.label(node.title, size: 20, weight: .medium)
+    let address = Theme.label(
+      node.kind == .connection ? node.detail : node.profile?.address ?? "", size: 11, muted: true)
+    let scope = Theme.label("展开连接选择库；展开库按需读取目录，点击表预览最多 100 行。", size: 11, muted: true)
+    let explanation = Theme.label(
+      group?.hasPolicyVariants == true
+        ? "此连接的原配置有不同 TLS 参数，按各条配置保留，不自动降级。"
+        : "同地址、端口、账号和环境合并显示；原始配置与 UUID 均保留。", size: 11, muted: true)
+    explanation.maximumNumberOfLines = 2
+    let titleText: String
+    if node.kind == .connection {
+      titleText =
+        node.profile?.kind == .es
+        ? "连接并读取索引" : node.profile?.kind == .redis ? "展开已配置 DB" : "连接并读取可见库"
+    } else {
+      titleText = "连接并读取目录"
+    }
+    let load = TreeActionButton(titleText) { [weak self, weak node] in
+      guard let node else { return }
+      self?.activateTreeNode(node)
+    }
+    let records =
+      node.kind == .connection
+      ? group?.profiles ?? []
+      : group?.profiles.filter { $0.database == node.profile?.database } ?? []
+    let table = TextTable(headers: ["原配置（双击连接 / 编辑）", "库 / DB", "传输"], widths: [300, 190, 110])
+    table.update(
+      records.map { [$0.name.isEmpty ? $0.kind.title : $0.name, $0.database, $0.transportPolicy] })
+    table.onActivate = { [weak self] row, _ in
+      guard records.indices.contains(row) else { return }
+      if let self, self.dataViews[records[row].id] != nil {
+        self.selectedProfile = records[row].id
+        self.display(self.dataViews[records[row].id]!, in: self.dataContent)
+      } else {
+        self?.showConnection(profile: records[row])
+      }
+    }
+    overviewTable = table
+    let count = Theme.label("\(records.count) 条原配置 · 密码仅在内存复用 · 最多 4 个数据会话", size: 10, muted: true)
+    let stack = Theme.stack(
+      [title, address, scope, explanation, load, Theme.separator(), count, table.scroll],
+      spacing: 16)
+    Theme.pin(stack, to: view, inset: 24)
+    for child in [title, address, scope, explanation, count, table.scroll] {
+      child.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+    }
+    table.scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 150).isActive = true
+    display(view, in: dataContent)
+  }
+  private func discoveredProfile(_ database: String, from template: ConnectionProfile)
+    -> ConnectionProfile
+  {
+    let groupID = ConnectionIdentity(template).id
+    if let existing = listedProfiles.first(where: {
+      ConnectionIdentity($0).id == groupID && $0.database == database
+    }) {
+      return existing
+    }
+    let key = groupID + ":" + ConnectionIdentity.token(database)
+    if let existing = discoveryProfiles[key] { return existing }
+    var profile = template
+    profile.id = UUID()
+    profile.database = database
+    profile.name = database
+    if discoveryProfiles.count < 5000 { discoveryProfiles[key] = profile }
+    return profile
+  }
+  private func treeMessage(_ title: String, in node: DataTreeNode) -> DataTreeNode {
+    DataTreeNode(id: node.id + "/message", kind: .message, title: title, groupID: node.groupID)
+  }
+  private func loadTree(_ node: DataTreeNode, workspace: DataWorkspace, cursor: String = "0") {
+    guard navigator.isCurrent(node), !node.loading else { return }
+    if [.table, .index, .key].contains(node.kind) {
+      workspace.preview(node.object)
+      return
+    }
+    guard !workspace.busy else {
+      Theme.error(ToolError.message("该会话正在执行查询，请稍后读取目录。"), window: window)
+      return
+    }
+    let profile = workspace.profile
+    guard ConnectionIdentity(profile).id == node.groupID else { return }
+    let action: String
+    let target: String
+    switch (node.kind, profile.kind) {
+    case (.connection, .mysql), (.connection, .pg):
+      action = "databases"
+      target = ""
+    case (.connection, .es):
+      action = "catalog"
+      target = ""
+    case (.database, .pg):
+      action = "schemas"
+      target = ""
+    case (.database, .mysql):
+      action = "tables"
+      target = node.profile?.database ?? profile.database
+    case (.schema, .pg):
+      action = "tables"
+      target = node.schema
+    case (.database, .redis):
+      action = "query"
+      target = ""
+    default: return
+    }
+    guard navigator.nodeCount < 5000 else {
+      Theme.error(ToolError.message("目录缓存已达 5000 项，请断开不用的连接后重试。"), window: window)
+      return
+    }
+    node.loading = true
+    navigator.changed(node)
+    Task { [weak self, weak node, weak workspace] in
+      guard let self, let node, let workspace else { return }
+      defer {
+        if navigator.isCurrent(node) {
+          node.loading = false
+          navigator.changed(node)
+        }
+      }
+      do {
+        let response = try await engine.run(
+          id: workspace.sessionID, action: action, text: "*", target: target, cursor: cursor)
+        guard navigator.isCurrent(node), dataViews[profile.id] === workspace else { return }
+        var children: [DataTreeNode] = []
+        if action == "databases" {
+          children = node.children.filter { $0.kind == .database }
+          let known = Set(children.compactMap { $0.profile?.database })
+          for row in response.rows where row.first != nil && !known.contains(row[0].text) {
+            let child = navigator.databaseNode(
+              profile: discoveredProfile(row[0].text, from: profile), groupID: node.groupID)
+            child.detail = "从服务器读取；非原配置，业务环境与使用范围尚未核对"
+            children.append(child)
+          }
+        } else if action == "schemas" {
+          children = response.rows.compactMap { row in
+            guard let name = row.first?.text else { return nil }
+            let child = DataTreeNode(
+              id: node.id + "/schema/" + ConnectionIdentity.token(name), kind: .schema,
+              title: name, groupID: node.groupID, profile: profile, expandable: true)
+            child.schema = name
+            return child
+          }
+        } else {
+          if cursor != "0" { children = node.children.filter { $0.kind == .key } }
+          var known = Set(children.map(\.id))
+          var skippedLongNames = false
+          for row in response.rows {
+            let kind: DataTreeNode.Kind =
+              profile.kind == .redis ? .key : profile.kind == .es ? .index : .table
+            guard row.count >= (kind == .table ? 2 : 1) else { continue }
+            let name = row[kind == .table ? 1 : 0].text
+            guard name.utf8.count <= 4096 else {
+              skippedLongNames = true
+              continue
+            }
+            let id = node.id + "/object/" + ConnectionIdentity.token(name)
+            guard known.insert(id).inserted else { continue }
+            let child = DataTreeNode(
+              id: id, kind: kind, title: name, detail: row.map(\.text).joined(separator: " · "),
+              groupID: node.groupID, profile: profile)
+            child.object = row
+            children.append(child)
+          }
+          if children.count > 500 { children = Array(children.prefix(500)) }
+          if skippedLongNames { children.append(treeMessage("部分名称超过 4 KiB，未加入目录", in: node)) }
+          if profile.kind == .redis, let next = response.nextCursor, next != "0",
+            children.count < 500
+          {
+            let more = DataTreeNode(
+              id: node.id + "/more", kind: .more, title: "下一批 Keys →", groupID: node.groupID,
+              profile: profile)
+            more.cursor = next
+            more.parentID = node.id
+            children.append(more)
+          }
+        }
+        if children.isEmpty { children = [treeMessage("当前范围无可见对象", in: node)] }
+        if response.truncated { children.append(treeMessage("目录已截断（最多 500 项）", in: node)) }
+        guard navigator.nodeCount - node.children.count + children.count <= 5000 else {
+          throw ToolError.message("目录缓存已达 5000 项，请断开不用的连接后重试。")
+        }
+        node.children = children
+        node.loaded = true
+        node.loading = false
+        navigator.changed(node)
+      } catch {
+        guard navigator.isCurrent(node) else { return }
+        node.loading = false
+        Theme.error(error, window: window)
+        navigator.changed(node)
+      }
+    }
+  }
+}
+@MainActor
+private final class TreeActionButton: PaperButton {
+  private let handler: () -> Void
+  init(_ title: String, handler: @escaping () -> Void) {
+    self.handler = handler
+    super.init(frame: .zero)
+    self.title = title
+    target = self
+    action = #selector(invoke)
+  }
+  required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+  @objc private func invoke() { handler() }
 }

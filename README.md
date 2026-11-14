@@ -2,7 +2,7 @@
 
 一个极简的原生 macOS 开发工作台。把连接服务器、查看数据、文件传输以及后续常用开发操作，收进同一个客户端。
 
-长期目标是逐步承接 SSH 终端、SFTP 文件工具、数据库客户端、接口调试和开发小工具的常用流程。当前是 **0.0.7 基础版本**，功能按真实使用逐步打磨，不承诺已完整替代 Xshell、Xftp 或 DataGrip。
+长期目标是逐步承接 SSH 终端、SFTP 文件工具、数据库客户端、接口调试和开发小工具的常用流程。当前是 **0.0.8 基础版本**，功能按真实使用逐步打磨，不承诺已完整替代 Xshell、Xftp 或 DataGrip。
 
 [下载最新版](https://github.com/anjing-le/cs-tool-x/releases/latest) · [项目规划](docs/PLAN.md) · [架构](docs/ARCHITECTURE.md) · [更新与发布](docs/RELEASING.md)
 
@@ -18,6 +18,10 @@
 首页沿用 FinanceX 的等宽卡片结构，配色采用 ShellX 暖纸张；Shell 与数据为两个独立入口，进入后为各自工作区，⌘1 返回首页。连接信息可保存在本机；数据库密码/API Key 只保留在本次会话；SSH 密码可按用户选择明文保存在本机 `shell.json`，编辑界面直接显示，SSH/SFTP 共用。不使用钥匙串。终端和查询历史只在内存中保留。后台没有常驻 HTTP 服务，数据进程与 SSH/SFTP 会话按需启动。
 
 当前面向 **macOS 14+、Apple Silicon**。Release 使用本地 ad-hoc 完整性签名，OTA 使用 Ed25519 更新包/feed 签名；发布私钥存仓库外 0600 文件，不使用钥匙串。尚未取得 Apple Developer ID 签名与公证；这与下载内容验签、功能验收分别处理。第三方 Mac 的首次启动体验仍待验证。
+
+## 数据连接树
+
+同类型、地址、端口、账号和环境显示为一个入口，下面按 MySQL 库 → 表、PostgreSQL 库 → Schema → 表、Redis DB → Keys、ES 索引展开。原始配置与 UUID 保留，TLS 参数按原配置分别使用；展开目录才读取元数据，不启动全库扫描。具体交互和边界见 [连接树](docs/DATA_TREE.md)。
 
 ## CLI 与 Agent
 

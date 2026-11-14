@@ -355,7 +355,7 @@ async fn es_request(
 }
 
 macro_rules! read_rows {
-    ($pool:expr, $sql:expr, $mysql:expr, $decode:expr) => {{
+    ($pool:expr, $sql:expr, $mysql:expr, $parameter:expr, $decode:expr) => {{
         let mut connection = $pool.acquire().await.map_err(query_error)?;
         if $mysql {
             sqlx::query("SET SESSION TRANSACTION READ ONLY")
@@ -381,7 +381,11 @@ macro_rules! read_rows {
         let mut output = Output::default();
         let mut bytes = 0usize;
         {
-            let mut stream = sqlx::raw_sql($sql).fetch(&mut *tx);
+            let mut stream = if let Some(parameter) = $parameter {
+                sqlx::query($sql).bind(parameter).fetch(&mut *tx)
+            } else {
+                sqlx::raw_sql($sql).fetch(&mut *tx)
+            };
             while let Some(row) = stream.try_next().await.map_err(query_error)? {
                 if output.rows.len() >= ROW_LIMIT {
                     output.truncated = true;
@@ -428,7 +432,29 @@ async fn execute(session: &Session, request: &Request) -> Result<Output, String>
     match session {
         Session::Mysql(_) | Session::Pg(_) => {
             let mysql = matches!(session, Session::Mysql(_));
+            let mut parameter: Option<&str> = None;
             let sql = match request.action.as_str() {
+                "databases" => {
+                    if mysql {
+                        "SELECT schema_name AS database_name FROM information_schema.schemata ORDER BY schema_name LIMIT 501".into()
+                    } else {
+                        "SELECT datname AS database_name FROM pg_catalog.pg_database WHERE datallowconn AND NOT datistemplate AND has_database_privilege(oid, 'CONNECT') ORDER BY datname LIMIT 501".into()
+                    }
+                }
+                "schemas" if !mysql => {
+                    "SELECT schema_name FROM information_schema.schemata WHERE schema_name NOT IN ('pg_catalog','information_schema') AND schema_name NOT LIKE 'pg\\_%' ORDER BY schema_name LIMIT 501".into()
+                }
+                "tables" => {
+                    if request.target.is_empty() || request.target.len() > 1024 {
+                        return Err("请选择一个有效的库或 Schema。".into());
+                    }
+                    parameter = Some(&request.target);
+                    if mysql {
+                        "SELECT table_schema, table_name, table_type FROM information_schema.tables WHERE table_schema = ? ORDER BY table_name LIMIT 501".into()
+                    } else {
+                        "SELECT table_schema, table_name, table_type FROM information_schema.tables WHERE table_schema = $1 ORDER BY table_name LIMIT 501".into()
+                    }
+                }
                 "catalog" => {
                     if mysql {
                         "SELECT table_schema, table_name, table_type FROM information_schema.tables WHERE table_schema = DATABASE() ORDER BY table_name LIMIT 500".to_string()
@@ -456,14 +482,18 @@ async fn execute(session: &Session, request: &Request) -> Result<Output, String>
             };
             match session {
                 Session::Mysql(pool) => {
-                    read_rows!(pool, &sql, true, |raw| <Vec<u8> as sqlx::Decode<
-                        sqlx::MySql,
-                    >>::decode(raw))
+                    read_rows!(pool, &sql, true, parameter, |raw| {
+                        <Vec<u8> as sqlx::Decode<sqlx::MySql>>::decode(raw)
+                    })
                 }
                 Session::Pg(pool) => {
-                    read_rows!(pool, &sql, false, |raw: sqlx::postgres::PgValueRef<'_>| raw
-                        .as_bytes()
-                        .map(|b| b.to_vec()))
+                    read_rows!(
+                        pool,
+                        &sql,
+                        false,
+                        parameter,
+                        |raw: sqlx::postgres::PgValueRef<'_>| raw.as_bytes().map(|b| b.to_vec())
+                    )
                 }
                 _ => unreachable!(),
             }
@@ -814,6 +844,29 @@ mod tests {
             assert_eq!(out.rows[0][0], json!("9007199254740993"));
             assert_eq!(out.rows[0][1], json!("本地测试"));
             assert_eq!(out.rows[0][2], Value::Null);
+            let databases = fixture_run(&session, "databases", "", "").await.unwrap();
+            assert!(databases.rows.iter().any(|r| r[0]
+                == if kind == "mysql" {
+                    "datax_fixture"
+                } else {
+                    "postgres"
+                }));
+            let scope = if kind == "mysql" {
+                "datax_fixture"
+            } else {
+                "public"
+            };
+            if kind == "pg" {
+                let schemas = fixture_run(&session, "schemas", "", "").await.unwrap();
+                assert!(schemas.rows.iter().any(|r| r[0] == "public"));
+            }
+            let tables = fixture_run(&session, "tables", "", scope).await.unwrap();
+            assert!(tables.rows.iter().any(|r| r[1] == "sample"));
+            // Scope is bound as a value; SQL-like input must not expand the result.
+            let hostile_scope = fixture_run(&session, "tables", "", "x' OR 1=1 -- ")
+                .await
+                .unwrap();
+            assert!(hostile_scope.rows.is_empty());
             let catalog = fixture_run(&session, "catalog", "", "").await.unwrap();
             assert!(catalog.rows.iter().any(|r| r[1] == "sample"));
             let schema = if kind == "mysql" {

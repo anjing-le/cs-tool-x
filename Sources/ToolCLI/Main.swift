@@ -91,10 +91,11 @@ struct Schema: ParsableCommand {
       {"command":"servers show ID","effect":"local read","options":["--show-secrets"]},
       {"command":"servers put --input FILE|-","effect":"local write","input":{"requiredOnCreate":["name","host"],"optional":["id","user","port","group","password","notes"]},"notes":"existing ID requires --if-revision; omitted fields preserve prior values, password empty string clears it"},
       {"command":"servers delete ID --if-revision TOKEN","effect":"local write"},
-      {"command":"profiles list","effect":"local read"},{"command":"profiles show UUID","effect":"local read"},
+      {"command":"profiles list","effect":"local read"},{"command":"profiles tree","effect":"local read","output":"connections grouped by identity; original profiles and revision retained"},{"command":"profiles show UUID","effect":"local read"},
       {"command":"profiles put --input FILE|-","effect":"local write","input":{"requiredOnCreate":["kind"],"optional":["id","name","environment","host","port","username","database","tls","endpoint"]},"notes":"existing UUID requires --if-revision; credentials cannot be saved"},
       {"command":"profiles delete UUID --if-revision TOKEN","effect":"local write"},
       {"command":"data query UUID --input FILE|-","effect":"remote query","input":{"required":["text"],"optional":["password","apiKey","target","cursor"]},"notes":"one-shot connection; existing engine limits and SQL read-only policy apply; no arbitrary SQL writes"},
+      {"command":"data browse UUID --level databases|schemas|tables --scope NAME --input FILE|-","effect":"remote metadata read","input":{"optional":["password","apiKey"]},"notes":"MySQL and PG only; schemas is PG-only, tables requires scope; bound scope parameters, at most 500 rows with truncation flag"},
       {"command":"data catalog UUID --input FILE|-","effect":"remote read","input":{"optional":["password","apiKey","text"]}},
       {"command":"ssh exec ID --input FILE|-","effect":"arbitrary remote command, potentially writes","input":{"required":["command"]},"options":["--timeout 1..120","--max-output-bytes 1..8388608"],"notes":"command is a remote sh script; no local shell interpolation; timeout/output limit stop local SSH, remote completion may be unknown"},
       {"command":"sftp ls ID --input FILE|-","effect":"remote read","input":{"optional":["path"]},"options":["--timeout 1..120","--max-output-bytes 1..8388608"],"notes":"native SFTP listing text in stdout field; get/put and resumable transfer not yet exposed"}

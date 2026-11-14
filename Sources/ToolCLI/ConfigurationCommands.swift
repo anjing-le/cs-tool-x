@@ -110,8 +110,22 @@ struct Servers: ParsableCommand {
 }
 struct Profiles: ParsableCommand {
   static let configuration = CommandConfiguration(subcommands: [
-    List.self, Show.self, Put.self, Delete.self,
+    List.self, Tree.self, Show.self, Put.self, Delete.self,
   ])
+  struct Tree: ParsableCommand {
+    static let configuration = CommandConfiguration(
+      abstract:
+        "Group saved profiles by endpoint, account and environment; preserve all source records.")
+    @OptionGroup var options: Options
+    func run() throws {
+      let state = try ProfileStore(directory: options.directory).snapshot()
+      try emit(
+        .object([
+          "connections": try value(ConnectionGroup.build(state.value)),
+          "revision": .string(state.revision),
+        ]))
+    }
+  }
   struct List: ParsableCommand {
     @OptionGroup var options: Options
     func run() throws {

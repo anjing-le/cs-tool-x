@@ -53,6 +53,7 @@ with tempfile.TemporaryDirectory(prefix='cs-tool-x-cli-') as temporary:
     call(['ssh','exec','9999'],{'command':'printf test'},status=3)
     profile=call(['profiles','put'],{'kind':'mysql','database':'fixture','name':'fixture'})
     pid=profile['id'];prev=profile['revision']
+    tree=call(['profiles','tree']);assert len(tree['connections'])==1 and tree['connections'][0]['profiles'][0]['id']==pid
     call(['profiles','put'],{'kind':'mysql','database':'fixture','password':'must-not-persist'},status=2)
     assert len(call(['profiles','list'])['profiles'])==1
     call(['profiles','put'],{'id':pid,'name':'changed'},status=2)
@@ -82,6 +83,10 @@ for line in sys.stdin:
         except ProcessLookupError:break
         time.sleep(.02)
     else:raise AssertionError('CLI left the fixture engine running')
+    call(['data','browse',pid,'--level','wrong'],{},status=2)
+    call(['data','browse',pid,'--level','tables'],{},status=2)
+    browse=call(['data','browse',pid,'--level','tables','--scope',"quote'schema",'--engine',str(fake)],{'password':'ephemeral-test-password'})
+    assert browse['output']['rows'][0][0]=='9007199254740993'
     call(['data','query',pid,'--engine','/missing/fixture-engine'],{'text':'SELECT 1'},status=5)
     call(['profiles','delete',pid,'--if-revision',prev])
     assert call(['profiles','list'])['profiles']==[]

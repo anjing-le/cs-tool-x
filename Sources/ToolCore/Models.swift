@@ -22,7 +22,7 @@ public enum ToolModule: String, CaseIterable, Codable, Sendable {
   }
   public var available: Bool { self == .data || self == .terminal || self == .files }
 }
-public enum DatabaseKind: String, CaseIterable, Codable, Sendable {
+public enum DatabaseKind: String, CaseIterable, Codable, Sendable, Hashable {
   case mysql, pg, es, redis
   public var title: String {
     switch self {
