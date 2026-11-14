@@ -63,3 +63,5 @@ Git 两侧分栏可以拖动调整，松开后记住宽度，窗口缩小时限�
 选中后先展示已有作者/提交主题，再读取说明及文件列表，最后读取 numstat。NUL 分隔路径，前两个 TAB 切分计数，保留路径内 TAB/换行。根提交统计新增行；合并提交和第一父提交比较，关闭重命名检测而按删+增表示。二进制不把缺失计数当 0。统计最多 8 秒/1 MiB，失败保留清单；仍最多显示 1000 文件，触顶汇总仅包括已显示文件，不声称完整总数。增删行数是变更量，并非文件总行数。
 
 CLI git show 新增 files[].additions/deletions/binary、filesLimited 和 statisticsError；缺少计数字段表示未读取/不可用。原 oid/message/files/limited 保留，具体含义见当前 schema。
+
+身份来源与环境覆盖规则参考 [Git commit 文档](https://git-scm.com/docs/git-commit)，numstat、NUL 路径及二进制计数语义参考 [Git diff-options 文档](https://git-scm.com/docs/diff-options)。本项目具体数据来源和限制以实际代码为准。
