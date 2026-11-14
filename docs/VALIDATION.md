@@ -65,3 +65,15 @@ release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库
 已检查的应用/项目/下载/桌面/文档目录仅有 /Applications/cs-tool-x.app 一份对应应用，Dock 仅一个对应固定项；安装 PNG 与生产源逐字节一致。旧安装移入废纸篓，配置与个人素材未纳入更新清理。
 
 正式构建、完整性、0.0.4 → 0.0.5 标识/公钥/feed/build、更新包/feed 验签和篡改负例通过。[0.0.5](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.5) 已发布，原生 URLSession 匿名下载 ZIP/校验和/feed 与本地已验签原件一致，latest feed 同样匹配。本次基于本机构建、签名检查和用户现场验收发布；记录时 [GitHub CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43449653693) 仍在排队，尚无远端结论。实际 OTA 安装与退出后/Finder 图标未计入本次验收。
+
+## 0.0.6 本机明文 SSH/SFTP 配置
+
+按用户授权读取指定历史部署记录，与本机部署脚本的主机/用户/目录交叉核对。真实连接资料只保存在仓库外的本机 shell.json，公开文档不列地址或密码。该主机为真实线上部署机，本轮没有执行上传、远端文件写入、部署、重启或升级命令。
+
+本机 Swift 测试 9 项，1 项因缺少隔离数据库 fixture 跳过，0 失败；新测试覆盖普通密码读取、端点/ID 不匹配、宽权限配置拒绝、主机确认/私钥口令/OTP 拒绝和 SSH/SFTP 参数保留主机校验。
+
+真实 OpenSSH 使用随包原生 askpass 登录，目录存在检查通过；SFTP 连接与 14 字节只读下载通过。原生客户端实际确认服务器条目、普通文本密码字段及备注，点击后自动登录 SSH 并输出验证标记；SFTP 控制台自动认证、cd/pwd、ls -l 和小文件 get 成功，下载与 CLI fixture 一致。一次 SFTP ls -ld 因不支持 -d 报错，随后使用受支持的 cd/pwd/ls -l 完成目录验证，未将报错计作通过。测试会话已关闭，配置保留。
+
+已核对单一正式安装；运行中透明 Dock PNG 保留。真实地址/密码在暂存源码及更新 ZIP 的扫描均未发现，ZIP 不含 shell.json；此检查不等于通用秘密扫描服务。完整性、0.0.5 → 0.0.6 身份/公钥/feed/build、归档/feed 验签与篡改负例通过。[CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43557918620) 全部通过。[0.0.6](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.6) 公开资产经原生 URLSession 匿名下载，与本地已验签 ZIP、校验和、feed 一致，latest feed 匹配。
+
+本轮未验收上传、图形化 SFTP 文件管理器、断线续传、巨大文件性能或完整 OTA 安装；数据库凭据仍不落盘。
