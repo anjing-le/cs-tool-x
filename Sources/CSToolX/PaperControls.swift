@@ -32,7 +32,7 @@ class PaperButton: NSButton {
     super.init(frame: frame)
     isBordered = false
     focusRingType = .none
-    font = .systemFont(ofSize: 12)
+    font = Theme.font(13)
     setButtonType(.momentaryPushIn)
   }
   required init?(coder: NSCoder) { nil }

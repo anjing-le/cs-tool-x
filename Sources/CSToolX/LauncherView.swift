@@ -31,7 +31,7 @@ private struct ModuleCard: View {
       hovered = false
       action()
     } label: {
-      Text(name).font(.system(size: 19, weight: .medium)).foregroundStyle(Ink.sage)
+      Text(name).font(Font(Theme.font(22, weight: .medium))).foregroundStyle(Ink.sage)
         .frame(maxWidth: .infinity).frame(height: 180)
         .background(
           .white.opacity(hovered || focused ? 0.72 : 0.48), in: RoundedRectangle(cornerRadius: 24)

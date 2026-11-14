@@ -44,8 +44,6 @@ final class WorkbenchWindow: NSWindow {
 final class WorkbenchSurface: NSView {
   private let dragRegion = WorkbenchDragRegion()
   private var cursorTracking: WritingCursorTracking!
-  private static let texture = Bundle.main.url(forResource: "PaperTexture", withExtension: "png")
-    .flatMap(NSImage.init(contentsOf:))
   override var isFlipped: Bool { true }
   override init(frame: NSRect) {
     super.init(frame: frame)
@@ -57,9 +55,8 @@ final class WorkbenchSurface: NSView {
   }
   required init?(coder: NSCoder) { nil }
   override func draw(_ dirtyRect: NSRect) {
-    Theme.paper.setFill()
+    CrayonInk.paper.setFill()
     bounds.fill()
-    Self.texture?.draw(in: bounds, from: .zero, operation: .sourceOver, fraction: 0.24)
   }
   func installDragRegion() { addSubview(dragRegion, positioned: .above, relativeTo: nil) }
   override func layout() {

@@ -13,7 +13,7 @@ import ToolCore
   private let detailTitle = Theme.label("", size: 13, weight: .medium)
   private let detailMeta = Theme.label("", size: 10, muted: true)
   private let message = NSTextView()
-  private let files = TextTable(headers: ["状态", "变更文件"], widths: [50, 260])
+  private let files = GitFilesList()
   private var more: NSButton!
   private var scanTask: Task<Void, Never>?
   private var logTask: Task<Void, Never>?
@@ -29,7 +29,12 @@ import ToolCore
   private var filterDivider: NSBox!
   private var filterButton: PaperIconButton!
   private var detailPanel: NSView!
-  private var detailDivider: NSBox!
+  private var detailDivider: PaperResizeHandle!
+  private var sidebarWidth: NSLayoutConstraint!
+  private var detailsWidth: NSLayoutConstraint!
+  private var messageHeight: NSLayoutConstraint!
+  private var measuredMessageWidth: CGFloat = 0
+  private var summaryNeedsLayout = true
   private var pages: [String: [GitCommit]] = [:]
   private var offsets: [String: Int] = [:]
   private var moreRoots = Set<String>()
@@ -90,16 +95,41 @@ import ToolCore
       [repositorySearch, sidebar.scroll],
       spacing: 10)
     left.edgeInsets = NSEdgeInsets(top: 14, left: 12, bottom: 12, right: 12)
-    left.wantsLayer = true
-    left.layer?.backgroundColor = Theme.sidebar.cgColor
-    left.widthAnchor.constraint(equalToConstant: 280).isActive = true
+    let sidePreference = UserDefaults.standard.double(forKey: "git.sidebar.width")
+    sidebarWidth = left.widthAnchor.constraint(
+      equalToConstant: sidePreference > 0 ? sidePreference : 228)
+    sidebarWidth.isActive = true
     for view in [repositorySearch, sidebar.scroll] {
       view.widthAnchor.constraint(equalTo: left.widthAnchor, constant: -24).isActive = true
     }
     let right = makeDetailPanel()
     detailPanel = right
-    right.widthAnchor.constraint(equalToConstant: 285).isActive = true
-    let dividers = [Theme.separator(vertical: true), Theme.separator(vertical: true)]
+    let detailPreference = UserDefaults.standard.double(forKey: "git.details.width")
+    detailsWidth = right.widthAnchor.constraint(
+      equalToConstant: detailPreference > 0 ? detailPreference : 330)
+    detailsWidth.isActive = true
+    let dividers = [PaperResizeHandle(), PaperResizeHandle()]
+    for divider in dividers { divider.widthAnchor.constraint(equalToConstant: 7).isActive = true }
+    dividers[0].initialWidth = { [weak self] in self?.sidebarWidth.constant ?? 228 }
+    dividers[0].onChange = { [weak self] width in
+      guard let self else { return }
+      sidebarWidth.constant = min(
+        max(180, width), min(360, max(180, bounds.width - detailsWidth.constant - 364)))
+    }
+    dividers[0].onEnd = { [weak self] in
+      if let self { UserDefaults.standard.set(sidebarWidth.constant, forKey: "git.sidebar.width") }
+    }
+    dividers[1].direction = -1
+    dividers[1].initialWidth = { [weak self] in self?.detailsWidth.constant ?? 330 }
+    dividers[1].onChange = { [weak self] width in
+      guard let self else { return }
+      detailsWidth.constant = min(
+        max(260, width), min(520, max(260, bounds.width - sidebarWidth.constant - 364)))
+      summaryNeedsLayout = true
+    }
+    dividers[1].onEnd = { [weak self] in
+      if let self { UserDefaults.standard.set(detailsWidth.constant, forKey: "git.details.width") }
+    }
     detailDivider = dividers[1]
     let content = Theme.stack(
       [left, dividers[0], history.scroll, dividers[1], right], vertical: false, spacing: 0)
@@ -140,35 +170,37 @@ import ToolCore
   }
   required init?(coder: NSCoder) { nil }
   private func makeDetailPanel() -> NSView {
-    detailMeta.maximumNumberOfLines = 4
+    detailTitle.font = .monospacedSystemFont(ofSize: 11, weight: .medium)
+    detailMeta.maximumNumberOfLines = 2
     detailMeta.lineBreakMode = .byTruncatingMiddle
-    detailMeta.heightAnchor.constraint(equalToConstant: 62).isActive = true
+    detailMeta.heightAnchor.constraint(equalToConstant: 36).isActive = true
     message.isEditable = false
     message.isSelectable = true
     message.isRichText = false
-    message.font = .systemFont(ofSize: 12)
+    message.font = Theme.font(14)
     message.textColor = Theme.ink
-    message.backgroundColor = Theme.paper
+    message.drawsBackground = false
     message.textContainerInset = NSSize(width: 5, height: 8)
     message.isHorizontallyResizable = false
     message.isVerticallyResizable = true
     message.textContainer?.widthTracksTextView = true
     message.autoresizingMask = [.width]
-    message.minSize = NSSize(width: 0, height: 165)
+    message.minSize = NSSize(width: 0, height: 32)
     message.maxSize = NSSize(
       width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-    message.frame = NSRect(x: 0, y: 0, width: 250, height: 165)
+    message.frame = NSRect(x: 0, y: 0, width: 250, height: 40)
     let messageScroll = NSScrollView()
     messageScroll.documentView = message
     messageScroll.hasVerticalScroller = true
     messageScroll.drawsBackground = false
     messageScroll.autohidesScrollers = true
-    messageScroll.heightAnchor.constraint(equalToConstant: 165).isActive = true
+    messageHeight = messageScroll.heightAnchor.constraint(equalToConstant: 40)
+    messageHeight.isActive = true
     let close = PaperIconButton(
       symbol: "xmark", label: "收起详情", target: self, action: #selector(closeDetail))
     let heading = Theme.stack([detailTitle, NSView(), close], vertical: false, spacing: 4)
     let stack = Theme.stack(
-      [heading, detailMeta, messageScroll, Theme.separator(), files.scroll], spacing: 10)
+      [heading, detailMeta, messageScroll, files.scroll], spacing: 8)
     heading.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
     files.table.headerView = nil
     stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 12, right: 14)
@@ -176,17 +208,32 @@ import ToolCore
       view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
     }
     files.scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 100).isActive = true
-    files.table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
-    files.colorForCell = { [weak self] row, _ in
-      guard let self, files.rows.indices.contains(row) else { return nil }
-      switch files.rows[row].first {
-      case "A": return Theme.sage
-      case "D": return NSColor(srgbRed: 0.73, green: 0.32, blue: 0.31, alpha: 1)
-      case "M", "T": return GitPalette.lines[0]
-      default: return Theme.ink
-      }
-    }
     return stack
+  }
+  override func draw(_ dirtyRect: NSRect) {
+    CrayonInk.paper.setFill()
+    bounds.fill()
+  }
+  override func layout() {
+    if bounds.width > 0, sidebarWidth != nil, detailsWidth != nil {
+      sidebarWidth.constant = min(sidebarWidth.constant, max(180, bounds.width * 0.3))
+      detailsWidth.constant = min(
+        detailsWidth.constant, max(260, bounds.width - sidebarWidth.constant - 364))
+    }
+    super.layout()
+    guard detailPanel != nil, !detailPanel.isHidden else { return }
+    let width = max(100, detailPanel.bounds.width - 48)
+    if summaryNeedsLayout || abs(width - measuredMessageWidth) > 2 {
+      measuredMessageWidth = width
+      summaryNeedsLayout = false
+      let text = String(message.string.prefix(2000)) as NSString
+      let height = text.boundingRect(
+        with: NSSize(width: width, height: 1000), options: [.usesLineFragmentOrigin],
+        attributes: [.font: message.font ?? Theme.font(14)]
+      ).height
+      let desired = min(220, max(40, ceil(height) + 18))
+      if abs(messageHeight.constant - desired) > 1 { messageHeight.constant = desired }
+    }
   }
   func activate() {
     active = true
@@ -455,19 +502,25 @@ import ToolCore
     detailDivider.isHidden = false
     detailTitle.stringValue = String(commit.oid.prefix(10))
     detailMeta.stringValue =
-      repository.location.name + "\n" + commit.author + " <" + commit.email + ">\n"
+      repository.location.name + " · " + commit.author + "\n"
       + Date(timeIntervalSince1970: Double(commit.timestamp)).formatted()
-    detailMeta.toolTip = commit.oid + "\n父提交：" + commit.parents.joined(separator: ", ")
+    detailMeta.toolTip =
+      commit.author + " <" + commit.email + ">\n" + commit.oid + "\n父提交："
+      + commit.parents.joined(separator: ", ")
     message.string = "正在读取…"
+    summaryNeedsLayout = true
+    needsLayout = true
     files.update([])
     detailTask = Task { [weak self] in
       guard let self else { return }
       do {
         let detail = try await GitBrowser.detail(repository: repository, oid: commit.oid)
+        let filePresentation = await Task.detached { GitFilesList.prepare(detail.files) }.value
         guard !Task.isCancelled, detailSerial == serial else { return }
-        message.string = detail.message
-        files.update(
-          detail.files.map { [$0.status, $0.path.replacingOccurrences(of: "\n", with: "↵")] })
+        message.string = detail.message.trimmingCharacters(in: .whitespacesAndNewlines)
+        files.apply(filePresentation)
+        summaryNeedsLayout = true
+        needsLayout = true
         if detail.limited { detailTitle.stringValue += " · 内容已截断" }
         detailTask = nil
       } catch is CancellationError {} catch {

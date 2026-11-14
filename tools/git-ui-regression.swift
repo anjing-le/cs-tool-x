@@ -42,6 +42,33 @@ import ToolCore
       log.enclosingScrollView!.frame.width < fullWidth, "Details appear only after selection")
     precondition(files.headerView == nil, "Changed files omit redundant column headings")
     precondition(files.numberOfRows == 1, "Selected merge shows first-parent changed files")
+    let handles = allViews(workspace).compactMap { $0 as? PaperResizeHandle }
+    precondition(
+      handles.count == 2 && handles.allSatisfy { $0.writingCursorRole == .columnResize },
+      "Both pane dividers use custom resize cursors")
+    let handle = handles[0]
+    let width = handles[0].initialWidth!()
+    handle.onChange?(width > 210 ? width - 24 : width + 24)
+    workspace.layoutSubtreeIfNeeded()
+    precondition(abs(handle.initialWidth!() - width) > 10, "Sidebar can be resized")
+    handle.onChange?(width)
+    workspace.layoutSubtreeIfNeeded()
+    let longPath =
+      "Sources/Features/Git/Presentation/ViewModels/GitRepositoryHistoryPresentationModel.swift"
+    let pathList = files.dataSource as! GitFilesList
+    let examples = try JSONDecoder().decode(
+      [GitFileChange].self,
+      from: JSONSerialization.data(withJSONObject: [
+        ["status": "M", "path": "README.md"], ["status": "A", "path": longPath],
+      ]))
+    pathList.update(examples)
+    workspace.layoutSubtreeIfNeeded()
+    precondition(
+      files.rect(ofRow: 1).height > files.rect(ofRow: 0).height,
+      "Nested paths keep the file name primary and directory on a second line")
+    precondition(
+      files.frame.width <= files.enclosingScrollView!.contentSize.width + 1,
+      "Path table has no automatic horizontal inset overflow")
     if CommandLine.arguments.count > 2 {
       window.layoutIfNeeded()
       let rep = workspace.bitmapImageRepForCachingDisplay(in: workspace.bounds)!

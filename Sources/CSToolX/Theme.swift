@@ -8,11 +8,29 @@ enum Theme {
   static let sage = NSColor(srgbRed: 0.37, green: 0.49, blue: 0.39, alpha: 1)
   static let pale = NSColor(srgbRed: 0.88, green: 0.91, blue: 0.85, alpha: 1)
   static let line = NSColor(calibratedWhite: 0.84, alpha: 1)
+  private static let fonts: NSCache<NSString, NSFont> = {
+    let c = NSCache<NSString, NSFont>()
+    c.countLimit = 64
+    return c
+  }()
+  static func font(_ size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
+    let key = "\(size):\(weight.rawValue)" as NSString
+    if let cached = fonts.object(forKey: key) { return cached }
+    let names =
+      weight.rawValue >= NSFont.Weight.medium.rawValue
+      ? ["HanziPenSC-W5", "HanziPenSC-W3", "STKaitiSC-Regular"]
+      : ["HanziPenSC-W3", "STKaitiSC-Regular", "STSongti-SC-Regular"]
+    let value =
+      names.compactMap { NSFont(name: $0, size: size) }.first
+      ?? NSFont.systemFont(ofSize: size, weight: weight)
+    fonts.setObject(value, forKey: key)
+    return value
+  }
   static func label(
     _ text: String, size: CGFloat = 12, weight: NSFont.Weight = .regular, muted: Bool = false
   ) -> NSTextField {
     let view = NSTextField(labelWithString: text)
-    view.font = .systemFont(ofSize: size, weight: weight)
+    view.font = font(size + 1, weight: weight)
     view.textColor = muted ? self.muted : ink
     view.lineBreakMode = .byTruncatingTail
     return view
@@ -79,7 +97,7 @@ enum Theme {
     field.isBordered = false
     field.drawsBackground = false
     field.focusRingType = .none
-    field.font = .systemFont(ofSize: 12)
+    field.font = font(13)
     field.textColor = ink
     field.heightAnchor.constraint(equalToConstant: 34).isActive = true
   }
@@ -175,4 +193,132 @@ final class TextTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
   @objc private func activate() {
     if table.clickedRow >= 0 { onActivate?(table.clickedRow, max(0, table.clickedColumn)) }
   }
+}
+
+/// Fixed, cached paper and pigment. No random changes during redraw or per-frame bitmap generation.
+@MainActor enum CrayonInk {
+  private static let cache: NSCache<NSString, NSImage> = {
+    let c = NSCache<NSString, NSImage>()
+    c.countLimit = 128
+    c.totalCostLimit = 8 * 1024 * 1024
+    return c
+  }()
+  static let paper: NSColor = NSColor(patternImage: tile(Theme.paper, sidebar: false))
+  static let sidebar: NSColor = NSColor(patternImage: tile(Theme.sidebar, sidebar: true))
+  private static func bitmap(_ size: NSSize, draw: (NSRect) -> Void) -> NSImage {
+    let rep = NSBitmapImageRep(
+      bitmapDataPlanes: nil, pixelsWide: Int(ceil(size.width * 2)),
+      pixelsHigh: Int(ceil(size.height * 2)), bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
+      isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
+    rep.size = size
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    let scale = NSAffineTransform()
+    scale.scale(by: 2)
+    scale.concat()
+    draw(NSRect(origin: .zero, size: size))
+    NSGraphicsContext.restoreGraphicsState()
+    let image = NSImage(size: size)
+    image.addRepresentation(rep)
+    return image
+  }
+  private static func tile(_ base: NSColor, sidebar: Bool) -> NSImage {
+    bitmap(NSSize(width: 192, height: 192)) { rect in
+      base.setFill()
+      rect.fill()
+      var seed: UInt64 = 0x81bf3
+      func random() -> CGFloat {
+        seed = seed &* 6_364_136_223_846_793_005 &+ 1
+        return CGFloat((seed >> 32) & 65535) / 65535
+      }
+      for pass in 0..<2 {
+        let path = NSBezierPath()
+        path.lineWidth = 0.45
+        for _ in 0..<600 {
+          let x = random() * 192
+          let y = random() * 192
+          path.move(to: NSPoint(x: x, y: y))
+          path.line(to: NSPoint(x: x + 2 + random() * 5, y: y + random() * 1.8 - 0.9))
+        }
+        (pass == 0
+          ? NSColor.white.withAlphaComponent(0.18)
+          : Theme.ink.withAlphaComponent(sidebar ? 0.014 : 0.009)).setStroke()
+        path.stroke()
+      }
+    }
+  }
+  static func stroke(_ path: NSBezierPath, color: NSColor, width: CGFloat = 1.6) {
+    path.lineCapStyle = .round
+    path.lineJoinStyle = .round
+    path.lineWidth = width + 0.7
+    color.withAlphaComponent(color.alphaComponent * 0.15).setStroke()
+    path.stroke()
+    path.lineWidth = width
+    color.withAlphaComponent(color.alphaComponent * 0.78).setStroke()
+    path.stroke()
+  }
+  static func swatch(_ rect: NSRect, color: NSColor) {
+    let rgb = color.usingColorSpace(.sRGB) ?? color
+    let key =
+      "\(Int(rect.width.rounded(.up))):\(Int(rect.height.rounded(.up))):\(rgb.redComponent):\(rgb.greenComponent):\(rgb.blueComponent)"
+      as NSString
+    let image: NSImage
+    if let found = cache.object(forKey: key) {
+      image = found
+    } else {
+      let size = NSSize(width: ceil(rect.width), height: ceil(rect.height))
+      image = bitmap(size) { bounds in
+        let fill = NSBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), xRadius: 3, yRadius: 3)
+        color.withAlphaComponent(0.25).setFill()
+        fill.fill()
+        let strokes = NSBezierPath()
+        strokes.lineWidth = 0.65
+        for i in stride(from: 2, to: Int(bounds.height) - 1, by: 3) {
+          strokes.move(to: NSPoint(x: 2, y: CGFloat(i)))
+          strokes.line(to: NSPoint(x: bounds.width - 2, y: CGFloat(i) + 0.55))
+        }
+        color.withAlphaComponent(0.16).setStroke()
+        strokes.stroke()
+        let flecks = NSBezierPath()
+        flecks.lineWidth = 0.6
+        for i in stride(from: 5, to: Int(bounds.width) - 2, by: 11) {
+          flecks.move(to: NSPoint(x: CGFloat(i), y: 4))
+          flecks.line(to: NSPoint(x: CGFloat(i) + 2, y: 5))
+        }
+        NSColor.white.withAlphaComponent(0.5).setStroke()
+        flecks.stroke()
+      }
+      cache.setObject(image, forKey: key, cost: Int(size.width * size.height * 16))
+    }
+    image.draw(in: rect)
+  }
+}
+
+@MainActor final class PaperResizeHandle: NSView, WritingCursorProviding {
+  var writingCursorRole: WritingCursorRole { .columnResize }
+  var initialWidth: (() -> CGFloat)?
+  var onChange: ((CGFloat) -> Void)?
+  var onEnd: (() -> Void)?
+  var direction: CGFloat = 1
+  private var origin: CGFloat = 0, width: CGFloat = 0
+  private var tracking: WritingCursorTracking!
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    tracking = WritingCursorTracking(view: self)
+  }
+  required init?(coder: NSCoder) { nil }
+  override func draw(_ dirtyRect: NSRect) {
+    let path = NSBezierPath()
+    path.move(to: NSPoint(x: bounds.midX, y: 0))
+    path.line(to: NSPoint(x: bounds.midX + 0.3, y: bounds.height))
+    CrayonInk.stroke(path, color: Theme.muted.withAlphaComponent(0.22), width: 0.5)
+  }
+  override func mouseDown(with event: NSEvent) {
+    origin = event.locationInWindow.x
+    width = initialWidth?() ?? 0
+  }
+  override func mouseDragged(with event: NSEvent) {
+    onChange?(width + (event.locationInWindow.x - origin) * direction)
+  }
+  override func mouseUp(with event: NSEvent) { onEnd?() }
 }

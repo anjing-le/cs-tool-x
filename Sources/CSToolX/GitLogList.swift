@@ -34,12 +34,13 @@ enum GitPalette {
   var onSelect: ((GitCommit) -> Void)?
   override init() {
     super.init()
+    table.style = .plain
     table.delegate = self
     table.dataSource = self
     scroll.onWidth = { [weak self] width in self?.fitColumns(width) }
-    table.rowHeight = 29
+    table.rowHeight = 31
     table.intercellSpacing = .zero
-    table.backgroundColor = Theme.paper
+    table.backgroundColor = CrayonInk.paper
     table.focusRingType = .none
     table.columnAutoresizingStyle = .noColumnAutoresizing
     table.headerView = nil
@@ -214,8 +215,8 @@ enum GitPalette {
           controlPoint1: NSPoint(x: x(segment.from), y: (startY + endY) / 2),
           controlPoint2: NSPoint(x: x(segment.to), y: (startY + endY) / 2))
       }
-      GitPalette.lines[segment.color % GitPalette.lines.count].setStroke()
-      path.stroke()
+      CrayonInk.stroke(
+        path, color: GitPalette.lines[segment.color % GitPalette.lines.count], width: 1.7)
     }
     GitPalette.lines[row.color % GitPalette.lines.count].setFill()
     NSBezierPath(ovalIn: NSRect(x: x(row.column) - 3.3, y: mid - 3.3, width: 6.6, height: 6.6))
@@ -243,7 +244,7 @@ enum GitPalette {
       withAttributes: [
         .font: mono
           ? NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
-          : NSFont.systemFont(ofSize: 11), .foregroundColor: Theme.ink, .paragraphStyle: paragraph,
+          : Theme.font(12), .foregroundColor: Theme.ink, .paragraphStyle: paragraph,
       ])
   }
 }
@@ -255,7 +256,7 @@ enum GitPalette {
     NSGraphicsContext.saveGraphicsState()
     bounds.clip()
     defer { NSGraphicsContext.restoreGraphicsState() }
-    let font = NSFont.systemFont(ofSize: 10)
+    let font = Theme.font(11.5)
     var labels = references.sorted { a, b in
       a.current != b.current ? a.current : a.kind.rawValue < b.kind.rawValue
     }.prefix(5).map { (String($0.name.prefix(60)), GitPalette.reference($0)) }
@@ -265,8 +266,7 @@ enum GitPalette {
       let width = min(140, (text as NSString).size(withAttributes: [.font: font]).width + 14)
       if left + width > bounds.width * 0.6 { break }
       let rect = NSRect(x: left, y: 5, width: width, height: bounds.height - 10)
-      color.withAlphaComponent(0.65).setFill()
-      NSBezierPath(roundedRect: rect, xRadius: 3, yRadius: 3).fill()
+      CrayonInk.swatch(rect, color: color)
       let style = NSMutableParagraphStyle()
       style.lineBreakMode = .byTruncatingTail
       (text as NSString).draw(
@@ -280,7 +280,7 @@ enum GitPalette {
       in: NSRect(
         x: left + 4, y: 7, width: max(0, bounds.width - left - 9), height: bounds.height - 10),
       withAttributes: [
-        .font: NSFont.systemFont(ofSize: 12), .foregroundColor: Theme.ink,
+        .font: Theme.font(14), .foregroundColor: Theme.ink,
         .paragraphStyle: paragraph,
       ])
   }

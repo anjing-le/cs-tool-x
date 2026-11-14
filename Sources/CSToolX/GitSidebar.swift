@@ -21,10 +21,11 @@ import ToolCore
   var onSelect: ((GitRepository?, GitReference?) -> Void)?
   override init() {
     super.init()
+    table.style = .plain
     table.delegate = self
     table.dataSource = self
     table.headerView = nil
-    table.backgroundColor = Theme.sidebar
+    table.backgroundColor = CrayonInk.sidebar
     table.focusRingType = .none
     let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("branch"))
     column.width = 290
@@ -89,7 +90,7 @@ import ToolCore
   }
   func numberOfRows(in tableView: NSTableView) -> Int { rows.count }
   func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-    rows[row].depth == 0 && rows[row].repository != nil ? 42 : 27
+    rows[row].depth == 0 && rows[row].repository != nil ? 43 : 29
   }
   func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView?
   {
@@ -150,11 +151,12 @@ import ToolCore
       dot.centerYAnchor.constraint(equalTo: title.centerYAnchor),
       title.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 4),
       title.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8),
-      title.topAnchor.constraint(equalTo: topAnchor, constant: 6),
-      detail.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 3),
+      title.topAnchor.constraint(equalTo: topAnchor, constant: 4),
+      detail.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 0),
       detail.leadingAnchor.constraint(equalTo: title.leadingAnchor),
       detail.trailingAnchor.constraint(equalTo: title.trailingAnchor),
     ])
+    detail.font = Theme.font(10)
     textField = title
   }
   required init?(coder: NSCoder) { nil }
@@ -167,8 +169,7 @@ import ToolCore
     toggle.symbol = expanded ? "chevron.down" : "chevron.right"
     toggle.setAccessibilityLabel((expanded ? "收起 " : "展开 ") + row.title)
     title.stringValue = String(row.title.prefix(200))
-    title.font = .systemFont(
-      ofSize: 12, weight: row.reference?.current == true ? .medium : .regular)
+    title.font = Theme.font(13, weight: row.reference?.current == true ? .medium : .regular)
     dot.stringValue = row.reference?.kind == .tag ? "◇" : "●"
     if let reference = row.reference {
       dot.textColor = GitPalette.reference(reference)

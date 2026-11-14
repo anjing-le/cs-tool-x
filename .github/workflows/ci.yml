@@ -41,7 +41,7 @@ jobs:
       - name: Read-only Git browser
         run: |
           python3 tools/git-browser-regression.py --binary .build/debug/cs-tool-x --write-fixture .local/git-ui-fixture
-          swiftc -parse-as-library -I .build/debug/Modules Sources/CSToolX/Theme.swift Sources/CSToolX/PaperControls.swift Sources/CSToolX/WorkbenchWindow.swift Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift Sources/CSToolX/GitLogList.swift Sources/CSToolX/GitSidebar.swift Sources/CSToolX/GitWorkspace.swift .build/debug/ToolCore.build/*.o tools/git-ui-regression.swift -o .local/git-ui-regression
+          swiftc -parse-as-library -I .build/debug/Modules Sources/CSToolX/Theme.swift Sources/CSToolX/PaperControls.swift Sources/CSToolX/WorkbenchWindow.swift Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift Sources/CSToolX/GitLogList.swift Sources/CSToolX/GitFilesList.swift Sources/CSToolX/GitSidebar.swift Sources/CSToolX/GitWorkspace.swift .build/debug/ToolCore.build/*.o tools/git-ui-regression.swift -o .local/git-ui-regression
           .local/git-ui-regression .local/git-ui-fixture
       - name: Native development bundle
         run: python3 scripts/build.py --development --configuration debug
