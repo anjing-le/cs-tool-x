@@ -16,6 +16,8 @@ jobs:
           toolchain: 1.93.1
       - name: Locked dependency inventory
         run: python3 tools/dependency-inventory.py
+      - name: Transparent application icon
+        run: swift tools/icon-regression.swift
       - name: Rust engine
         run: |
           cargo test --locked --manifest-path engine/Cargo.toml

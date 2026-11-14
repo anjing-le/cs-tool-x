@@ -137,6 +137,23 @@ final class GitBrowserTests: XCTestCase {
     XCTAssertFalse(
       FileManager.default.fileExists(atPath: repo.appendingPathComponent(".git/index.lock").path))
   }
+  func testGeneratedRepositoriesAreExcludedButExplicitRootIsAllowed() async throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("git-exclusions-" + UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    var explicit: URL?
+    for name in ["project/.build/checkouts/Sparkle", "project/.build/repositories/Sparkle-cache", "project/node_modules/dependency", "project/dist/source", "project/target/cache", "project/nested"] {
+      let location = root.appendingPathComponent(name)
+      try FileManager.default.createDirectory(at: location, withIntermediateDirectories: true)
+      _ = try git(location, ["init", "-b", "main"])
+      if name.contains("checkouts") { explicit = location }
+    }
+    _ = try git(root.appendingPathComponent("project"), ["init", "-b", "main"])
+    let result = try await GitBrowser.scan(directory: root.path)
+    XCTAssertEqual(Set(result.repositories.map(\.name)), ["project", "nested"])
+    let direct = try await GitBrowser.scan(directory: explicit!.deletingLastPathComponent().path)
+    XCTAssertEqual(direct.repositories.map(\.name), ["Sparkle"], "Explicitly opened dependency locations still work")
+  }
   func testGraphKeepsIdenticalHashesInDifferentRepositoriesSeparate() {
     let parent = String(repeating: "a", count: 40)
     let child = String(repeating: "b", count: 40)

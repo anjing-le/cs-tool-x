@@ -92,6 +92,12 @@ public struct GitCommitDetail: Codable, Sendable {
 
 /// Local read-only plumbing. No shell interpolation, network, status/index refresh or Git write commands.
 public enum GitBrowser {
+  // Skip only known generated/dependency directory names below the selected root.
+  // Opening one explicitly still scans it, and ordinary nested/worktree repos remain visible.
+  public static let excludedDirectoryNames: Set<String> = [
+    ".git", ".build", ".swiftpm", "node_modules", "Pods", "Carthage",
+    ".gradle", ".venv", "__pycache__", ".cache", ".local", "dist", "target",
+  ]
   public static let maxRepositories = 500
   public static let maxScanEntries = 250_000
   public static let maxTotalReferences = 20_000
@@ -194,7 +200,7 @@ public enum GitBrowser {
         }
         let values = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
         guard values?.isSymbolicLink != true, values?.isDirectory == true,
-          url.lastPathComponent != ".git"
+          !excludedDirectoryNames.contains(url.lastPathComponent)
         else { continue }
         let count = locations.count
         inspect(url)
