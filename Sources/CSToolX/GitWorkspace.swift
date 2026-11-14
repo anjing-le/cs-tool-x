@@ -327,7 +327,6 @@ import ToolCore
         sidebar.update(loaded)
         scanTask = nil
         selectedRepository = loaded.first?.id
-        if let selectedRepository { sidebar.expand(selectedRepository) }
         sidebar.select(repository: selectedRepository)
         validateReference()
         reloadLog()

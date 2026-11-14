@@ -22,7 +22,35 @@ import ToolCore
     try await idle()
     precondition(workspace.repositories.count == 3, "UI discovers every fixture repository")
     func allViews(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(allViews) }
+    let sidebar = GitSidebar()
+    sidebar.update(workspace.repositories)
+    let repositoryRow = sidebar.rows.firstIndex { $0.repository?.references.isEmpty == false }!
+    let repository = sidebar.rows[repositoryRow].repository!
+    precondition(sidebar.rows.count == 4, "Repositories begin collapsed")
+    precondition(sidebar.table.doubleAction != nil, "Whole-row double click has an action")
+    sidebar.table.selectRowIndexes(IndexSet(integer: repositoryRow), byExtendingSelection: false)
+    let cell = sidebar.tableView(sidebar.table, viewFor: sidebar.table.tableColumns[0], row: repositoryRow)!
+    precondition(!allViews(cell).contains { $0 is NSButton }, "Sidebar has no disclosure buttons")
+    let labels = allViews(cell).compactMap { $0 as? NSTextField }
+    precondition(labels.contains { $0.stringValue == "✓" && !$0.isHidden }, "Selected row has trailing cue")
+    precondition(labels.contains { $0.stringValue == repository.branchLabel }, "Selected branch moves to the right")
+    sidebar.activateSelection()
+    precondition(sidebar.rows.count > 4, "Double click expands branch rows")
+    sidebar.activateSelection()
+    precondition(sidebar.rows.count == 4, "Double click collapses branch rows")
+    sidebar.discloseSelection(true)
+    let referenceRow = sidebar.rows.firstIndex { $0.reference != nil }!
+    sidebar.table.selectRowIndexes(IndexSet(integer: referenceRow), byExtendingSelection: false)
+    let rowCount = sidebar.rows.count
+    sidebar.activateSelection()
+    precondition(sidebar.rows.count == rowCount, "Activating a branch does not toggle its repository")
+    sidebar.select(repository: repository.id)
+    sidebar.discloseSelection(false)
+    precondition(sidebar.rows.count == 4, "Keyboard collapse is available without a visible arrow")
     let tables = allViews(workspace).compactMap { $0 as? NSTableView }
+    let actualSidebar = tables.first { $0.tableColumns.first?.identifier.rawValue == "branch" }!
+    precondition(actualSidebar.frame.width <= actualSidebar.enclosingScrollView!.contentSize.width + 1,
+      "Trailing branch and selection remain inside sidebar viewport")
     let log = tables.first { $0.tableColumns.contains { $0.identifier.rawValue == "subject" } }!
     precondition(log.numberOfRows == 4, "Selected repository has four commits with a merge")
     let graph = log.view(atColumn: 1, row: 0, makeIfNecessary: true) as! GitGraphCell
