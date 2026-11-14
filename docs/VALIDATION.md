@@ -131,3 +131,5 @@ Swift 22 项测试通过，1 项隔离数据库大帧 fixture 本轮未启动而
 debug 与正式包 CLI 回归通过；正式包新引擎对四个已选目标完成目录读取和只读查询：SQL SELECT 1、Redis 有界无匹配 SCAN、ES size=0 搜索，不读取业务记录正文。连接配置在检查前后不变，完整归档可读且权限为 0600；具体地址、账号、密码及目录清单只保留本机 ignored 记录。
 
 [0.0.9 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43595387662) 全部通过，包含新浏览/查询组件、连接过滤、草稿保留和元数据预算回归。[0.0.9](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.9) 已发布；0.0.8 → 0.0.9 标识、公钥、feed 与递增 build 验证、归档/feed 签名及篡改拒绝通过，公开 ZIP/校验和/feed 与本地已验签文件一致，latest feed 匹配。临时 .app 已移入废纸篓，历史 ZIP 保留。安装后验收等待用户在现有客户端完成更新，窗口操作工具当前不可用。
+
+用户确认安装并重启后，正式路径核对为 0.0.9（9）。GUI、CLI、引擎、Info.plist 与透明 Dock PNG 均与已验签 ZIP 字节一致，codesign 严格检查通过。安装后的 CLI 确认只有 PG/MySQL/Redis/ES 四个连接，原全量归档完整且权限 0600；使用正式包再次通过四种连接的只读目录/查询检查，配置内容不变。已检查的应用/项目/文档/下载/桌面目录仅一个对应客户端，Dock 一个固定项，正式 GUI 进程一个。窗口点击仍未自动验收，没有把 CLI 验证扩写为 GUI 操作验收。
