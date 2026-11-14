@@ -2,7 +2,7 @@
 
 - 原生 macOS 14+ 开发工作台。Swift/AppKit/SwiftUI 宿主、Rust 数据进程、SwiftTerm/OpenSSH、Sparkle；不恢复旧 Tauri 原型，不默认加入账号、云同步或插件市场。
 - 首页沿用 FinanceX 的等宽卡片结构，配色使用 ShellX 暖纸张、鼠尾草绿和浅色分隔线，目前只有 Shell、数据。无首页说明墙、设置卡片或常驻侧栏；SSH 与文件传输必须位于同一个 Shell 工作区，右侧文件栏，不拆成首页两个模块。进入后各模块独立布局，Cmd+1 返回首页。Shell 复用 anjing-shell 的服务器分组、搜索、同窗编辑、标签和分屏，不迁入假服务器/日志/传输成功状态或私人指针素材。保持兄弟项目不变。
-- 不使用系统钥匙串：客户端密码/API Key 仅在当前会话内存，SSH 密钥由用户自己的文件/Agent 管理，明确传 UseKeychain=no / AddKeysToAgent=no，不自动导入保存。连接元数据可保存但不含秘密字段。
+- 不使用系统钥匙串：数据库密码/API Key 仅在当前会话内存；SSH 密码按用户明确选择保存在本机 shell.json 中并在编辑界面明文显示，真实凭据禁止进入 Git/app/OTA，SSH 密钥由用户自己的文件/Agent 管理，明确传 UseKeychain=no / AddKeysToAgent=no，不自动导入保存。连接元数据可保存但不含秘密字段。
 - OTA 不使用钥匙串。私钥只允许放在仓库外、当前用户所有的 0600 普通文件，签名工具用 --ed-key-file 读取；绝不输出内容、进入仓库或打进 app。固定 Ed25519 公钥与 feed，从首个发布版本起保持稳定。
 - 应用使用 ad-hoc 完整性签名；OTA 来源认证使用签名 feed 和先验签的 Ed25519 更新包。不声称有证书身份或 Apple Developer ID / 公证。缺失更新私钥时停止发布，不降级为未验签更新。
 - 正式 Bundle ID cc.anjing.cs-tool-x，执行文件 CSToolX；开发包 .dev，配置空间分离且关闭 OTA。版本与 build 同时递增，核对前后真实包的完整性、应用标识、公钥和更新源。用户自行确认更新安装，不替用户覆盖已安装应用。
@@ -20,3 +20,5 @@
 - 运行中 Dock 必须在主线程启动回调中把原始透明 DockIcon.png 设为 NSApp.applicationIconImage；构建从生产 PNG 原样复制，不只配置 ICNS。PNG/ICNS alpha 检查不能替代实际 Dock 显示验收。退出后固定项及 Finder 是不同显示路径，分别报告，不全局清理图标缓存或新增轮询。
 
 - 长期迭代的性能/兼容契约见 docs/PERFORMANCE_COMPATIBILITY.md：驱动随引擎编译，实际版本/来源用 tools/dependency-inventory.py 从锁文件生成，构建严格锁定；不得把驱动支持等同于应用兼容。展示上限不等于接收/进程内存/服务端开销上限，超时不等于已取消。新增文件查看须按字节范围读取；tail 行数不能替代字节/时间预算。功能扩展前优先完成极端输出、大单值、取消与连接复用的隔离压测。未实测项保持未验收，不生成虚构指标或默认自动定期维护。
+
+- SSH/SFTP 明文密码使用本机用户配置与原生 askpass 辅助模式；不通过进程 argv/env 放密码，不解析终端输出猜测密码提示。保留主机指纹校验，密码助手拒绝指纹确认/私钥口令/OTP，已有密钥或交互认证的无密码配置保持原行为。SSH 与 SFTP 共用服务器配置，验证生产服务器默认只读，不顺手部署、重启或修改服务。

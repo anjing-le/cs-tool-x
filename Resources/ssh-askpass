@@ -1,0 +1,3 @@
+#!/bin/sh
+# No secret in argv or environment: the native helper reads the user's local config.
+exec "$CSTOOLX_ASKPASS_EXECUTABLE" --ssh-askpass "$@"

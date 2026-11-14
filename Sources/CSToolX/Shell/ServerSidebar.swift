@@ -218,10 +218,11 @@ private struct ServerEditor: View {
   @State private var chosenGroup = ""
   @State private var user = ""
   @State private var port = "22"
-  @State private var advanced = false
+  @State private var password = ""
+  @State private var notes = ""
   @State private var error: String?
   @FocusState private var focused: Field?
-  private enum Field { case name, host, user, port }
+  private enum Field { case name, host, user, port, password, notes }
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
       field("名称") {
@@ -251,33 +252,32 @@ private struct ServerEditor: View {
         }.scrollIndicators(.hidden).frame(
           height: min(100, CGFloat((model.groups.count + 1) / 2) * 37))
       }
-      PaperAction(label: "展开或收起连接选项", action: { advanced.toggle() }) {
-        HStack {
-          Text("连接选项").font(.system(size: 11))
-          Spacer()
-          Text("\(user) · \(port)").font(.system(size: 10, design: .monospaced)).foregroundStyle(
-            Ink.muted)
-          Image(systemName: advanced ? "chevron.up" : "chevron.down").font(.system(size: 8))
-        }.padding(.vertical, 5)
-      }
-      if advanced {
-        HStack(spacing: 12) {
-          field("用户名") {
-            TextField("使用 SSH 配置", text: $user).focused($focused, equals: .user).onSubmit {
-              focused = .port
-            }
+      HStack(spacing: 12) {
+        field("用户名") {
+          TextField("使用 SSH 配置", text: $user).focused($focused, equals: .user).onSubmit {
+            focused = .port
           }
-          field("端口") {
-            TextField("22", text: $port).focused($focused, equals: .port).onSubmit(save)
-          }.frame(width: 75)
         }
+        field("端口") {
+          TextField("22", text: $port).focused($focused, equals: .port).onSubmit {
+            focused = .password
+          }
+        }.frame(width: 75)
+      }
+      field("密码 · 本机明文") {
+        TextField("留空使用 SSH 配置 / Agent", text: $password).focused($focused, equals: .password)
+          .onSubmit { focused = .notes }
+      }
+      field("备注") {
+        TextField("用途、目录和验证范围", text: $notes, axis: .vertical).lineLimit(1...3)
+          .focused($focused, equals: .notes)
       }
       if let error {
         Text(error).font(.system(size: 11)).foregroundStyle(Ink.peach).fixedSize(
           horizontal: false, vertical: true)
       }
       HStack {
-        Text("仅保存连接信息，不保存凭据").font(.system(size: 9)).foregroundStyle(Ink.muted)
+        Text("密码明文保存在本机，不使用钥匙串").font(.system(size: 9)).foregroundStyle(Ink.muted)
         Spacer()
         PaperAction(label: id == nil ? "添加服务器" : "保存服务器", action: save) {
           Text(id == nil ? "添加" : "保存").font(.system(size: 12, weight: .medium)).foregroundStyle(
@@ -295,6 +295,8 @@ private struct ServerEditor: View {
         chosenGroup = server.group
         user = server.user
         port = String(server.port)
+        password = server.password ?? ""
+        notes = server.notes ?? ""
       } else if model.searching {
         if model.query.contains(".") {
           host = model.query.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -321,7 +323,8 @@ private struct ServerEditor: View {
   }
   private func save() {
     error = model.saveServer(
-      id: id, name: name, host: host, group: chosenGroup, user: user, port: port)
+      id: id, name: name, host: host, group: chosenGroup, user: user, port: port,
+      password: password, notes: notes)
   }
 }
 

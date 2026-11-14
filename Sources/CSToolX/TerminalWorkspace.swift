@@ -5,6 +5,8 @@ import ToolCore
 @MainActor
 final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
   private let sftp: Bool
+  private let savedServer: Server?
+  private let passwordDisplay = Theme.field("未保存密码，使用交互认证")
   private let host = Theme.field("SSH Host 别名或地址")
   private let user = Theme.field("用户名，可留空使用 SSH 配置")
   private let port = Theme.field("22")
@@ -18,6 +20,7 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
   private(set) var running = false
   init(sftp: Bool, server: Server? = nil) {
     self.sftp = sftp
+    self.savedServer = server
     super.init(frame: .zero)
     port.stringValue = String(server?.port ?? 22)
     host.stringValue = server?.host ?? ""
@@ -28,6 +31,13 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
     localButton.isHidden = sftp
     stopButton = Theme.button("断开", target: self, action: #selector(stop))
     stopButton.isEnabled = false
+    passwordDisplay.stringValue = server?.password ?? ""
+    passwordDisplay.isEditable = false
+    passwordDisplay.isSelectable = true
+    passwordDisplay.setAccessibilityLabel("密码 · 本机明文")
+    let credentials = Theme.stack(
+      [Theme.label("密码 · 本机明文"), passwordDisplay], vertical: false, spacing: 12)
+    credentials.isHidden = (server?.password ?? "").isEmpty
     let title = Theme.label(sftp ? "SFTP 控制台" : "终端", size: 23, weight: .medium)
     let subtitle = Theme.label(
       sftp ? "基于系统 sftp；图形化目录与传输队列正在规划。" : "使用系统 OpenSSH、SSH 配置与 Agent；主机指纹由你确认。", size: 11,
@@ -37,10 +47,15 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
     port.widthAnchor.constraint(equalToConstant: 64).isActive = true
     user.widthAnchor.constraint(equalToConstant: 180).isActive = true
     let root = Theme.stack(
-      [title, subtitle, Theme.separator(), fields, container, status], spacing: 17)
+      [title, subtitle, Theme.separator(), fields, credentials, container, status], spacing: 17)
     Theme.pin(root, to: self, inset: 26)
-    for view in [subtitle, fields, container, status] {
+    for view in [subtitle, fields, credentials, container, status] {
       view.widthAnchor.constraint(equalTo: root.widthAnchor).isActive = true
+    }
+    if server != nil {
+      host.isEnabled = false
+      user.isEnabled = false
+      port.isEnabled = false
     }
     container.heightAnchor.constraint(greaterThanOrEqualToConstant: 250).isActive = true
     let hint = Theme.label(
@@ -57,7 +72,8 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
     guard !running else { return }
     do {
       let args = try SSHCommand.arguments(
-        host: host.stringValue, user: user.stringValue, port: port.stringValue, sftp: sftp)
+        host: host.stringValue, user: user.stringValue, port: port.stringValue, sftp: sftp,
+        passwordAuthentication: !(savedServer?.password ?? "").isEmpty)
       launch(executable: sftp ? "/usr/bin/sftp" : "/usr/bin/ssh", args: args)
     } catch { Theme.error(error, window: window) }
   }
@@ -66,6 +82,17 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
     launch(executable: "/bin/zsh", args: ["-l"])
   }
   private func launch(executable: String, args: [String]) {
+    let environment: [String]?
+    do {
+      if let savedServer {
+        environment = try ShellAuthentication.environment(for: savedServer)
+      } else {
+        environment = nil
+      }
+    } catch {
+      Theme.error(error, window: window)
+      return
+    }
     let terminal = CursorTerminalView(frame: container.bounds)
     let gate = TerminalGate(terminal)
     self.gate = gate
@@ -89,6 +116,7 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
     status.stringValue = "会话运行中 · 输出仅保留在内存"
     terminal.startProcess(
       executable: executable, args: args,
+      environment: environment,
       currentDirectory: FileManager.default.homeDirectoryForCurrentUser.path)
     window?.makeFirstResponder(terminal)
   }
@@ -102,9 +130,9 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
     startButton.isEnabled = true
     localButton.isEnabled = true
     stopButton.isEnabled = false
-    host.isEnabled = true
-    user.isEnabled = true
-    port.isEnabled = true
+    host.isEnabled = savedServer == nil
+    user.isEnabled = savedServer == nil
+    port.isEnabled = savedServer == nil
     status.stringValue = "会话已结束"
   }
   nonisolated func sizeChanged(source: LocalProcessTerminalView, newCols: Int, newRows: Int) {}
@@ -117,9 +145,9 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
       startButton.isEnabled = true
       localButton.isEnabled = true
       stopButton.isEnabled = true
-      host.isEnabled = true
-      user.isEnabled = true
-      port.isEnabled = true
+      host.isEnabled = savedServer == nil
+      user.isEnabled = savedServer == nil
+      port.isEnabled = savedServer == nil
       status.stringValue = "会话已退出 · \(exitCode.map(String.init) ?? "未知状态")"
     }
   }

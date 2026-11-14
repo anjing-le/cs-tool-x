@@ -20,6 +20,8 @@ struct Server: Identifiable, Codable, Equatable, Sendable {
   var group: String
   var port: Int = 22
   var user: String = ""
+  var password: String? = nil
+  var notes: String? = nil
   var tint: Color { Ink.sage }
   var local: Bool { id == -1 }
   static let localServer = Server(id: -1, name: "本地终端", host: "localhost", group: "本机")
@@ -66,13 +68,14 @@ struct ShellConfiguration: Codable, Sendable {
 }
 actor ShellStore {
   private var revision = -1
-  private var url: URL {
+  static var configurationURL: URL {
     FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
       .appendingPathComponent(
         Bundle.main.bundleIdentifier?.hasSuffix(".dev") == true ? "cs-tool-x-dev" : "cs-tool-x",
         isDirectory: true
       ).appendingPathComponent("shell.json")
   }
+  private var url: URL { Self.configurationURL }
   func load() throws -> ShellConfiguration? {
     guard FileManager.default.fileExists(atPath: url.path) else { return nil }
     let data = try Data(contentsOf: url)
@@ -134,7 +137,10 @@ final class Workspace: ObservableObject {
       open(server)
     }
   }
-  func saveServer(id: Int?, name: String, host: String, group: String, user: String, port: String)
+  func saveServer(
+    id: Int?, name: String, host: String, group: String, user: String, port: String,
+    password: String = "", notes: String = ""
+  )
     -> String?
   {
     let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -147,11 +153,16 @@ final class Workspace: ObservableObject {
     do { _ = try SSHCommand.arguments(host: host, user: user, port: port, sftp: false) } catch {
       return error.localizedDescription
     }
+    guard password.utf8.count <= 4096,
+      !password.contains(where: { $0 == "\n" || $0 == "\r" || $0 == "\0" }),
+      notes.utf8.count <= 4096
+    else { return "密码不能含换行或空字符，密码和备注均不得超过 4 KiB。" }
     guard groups.contains(group) else { return "请选择分组。" }
     guard id != nil || servers.count < 100 else { return "最多保存 100 台服务器。" }
     let server = Server(
       id: id ?? ((servers.map(\.id).max() ?? -1) + 1), name: name, host: host, group: group,
-      port: Int(port)!, user: user)
+      port: Int(port)!, user: user, password: password.isEmpty ? nil : password,
+      notes: notes.isEmpty ? nil : notes)
     if let index = servers.firstIndex(where: { $0.id == server.id }) {
       servers[index] = server
     } else {

@@ -154,7 +154,9 @@ public struct QueryOutput: Codable, Sendable {
 }
 public enum SSHCommand {
   /// Arguments stay separate. Never concatenate a host into a shell command.
-  public static func arguments(host: String, user: String, port: String, sftp: Bool) throws
+  public static func arguments(
+    host: String, user: String, port: String, sftp: Bool, passwordAuthentication: Bool = false
+  ) throws
     -> [String]
   {
     guard !host.isEmpty, host.utf8.count <= 1024, !host.hasPrefix("-"),
@@ -166,6 +168,14 @@ public enum SSHCommand {
       "-o", "UseKeychain=no", "-o", "AddKeysToAgent=no", "-o", "StrictHostKeyChecking=ask",
       sftp ? "-P" : "-p", String(number),
     ]
+    if passwordAuthentication {
+      args.insert(
+        contentsOf: [
+          "-o", "PreferredAuthentications=password", "-o", "PubkeyAuthentication=no",
+          "-o", "KbdInteractiveAuthentication=no", "-o", "NumberOfPasswordPrompts=1", "-o",
+          "BatchMode=no",
+        ], at: 0)
+    }
     if sftp {
       args += ["--", user.isEmpty ? host : "\(user)@\(host)"]
     } else {

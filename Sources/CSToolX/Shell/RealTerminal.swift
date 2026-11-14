@@ -34,10 +34,12 @@ final class RealTerminal: ObservableObject, Identifiable, LocalProcessTerminalVi
       } else {
         executable = "/usr/bin/ssh"
         args = try SSHCommand.arguments(
-          host: server.host, user: server.user, port: String(server.port), sftp: false)
+          host: server.host, user: server.user, port: String(server.port), sftp: false,
+          passwordAuthentication: !(server.password ?? "").isEmpty)
       }
       terminal.startProcess(
         executable: executable, args: args,
+        environment: try ShellAuthentication.environment(for: server),
         currentDirectory: FileManager.default.homeDirectoryForCurrentUser.path)
       status = server.local ? "本地终端" : "SSH · 正在连接或等待认证"
     } catch { status = error.localizedDescription }

@@ -118,6 +118,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct ApplicationMain {
   @MainActor static func main() {
+    if CommandLine.arguments.dropFirst().first == "--ssh-askpass" {
+      do {
+        let environment = ProcessInfo.processInfo.environment
+        guard environment["SSH_ASKPASS_PROMPT"] != "confirm",
+          let path = environment["CSTOOLX_SSH_CONFIG"],
+          let textID = environment["CSTOOLX_SSH_SERVER_ID"], let serverID = Int(textID)
+        else { exit(1) }
+        let password = try SSHPassword.response(
+          prompt: CommandLine.arguments.dropFirst(2).joined(separator: " "),
+          configuration: URL(fileURLWithPath: path), serverID: serverID,
+          expectedHost: environment["CSTOOLX_SSH_HOST"] ?? "",
+          expectedUser: environment["CSTOOLX_SSH_USER"] ?? "",
+          expectedPort: Int(environment["CSTOOLX_SSH_PORT"] ?? "") ?? 0)
+        FileHandle.standardOutput.write(Data((password + "\n").utf8))
+        exit(0)
+      } catch {
+        FileHandle.standardError.write(Data("SSH 密码助手未返回凭据；请检查本机配置或主机指纹。\n".utf8))
+        exit(1)
+      }
+    }
     let application = NSApplication.shared
     let delegate = AppDelegate()
     application.delegate = delegate

@@ -9,7 +9,7 @@ macOS 14+ 的原生 Swift/AppKit 宿主，Rust 数据进程作为子进程按需
 ```mermaid
 flowchart TB
     UI[Swift / AppKit 宿主] --> Connections[连接与环境元数据]
-    Connections --> Memory[凭据仅驻留当前会话内存]
+    Connections --> Memory[数据库凭据仅驻留当前会话内存]
     UI --> Data[数据工作区]
     Data --> IPC[私有 stdin / stdout：有界 JSON RPC v1]
     IPC --> Rust[Rust 数据进程]
@@ -27,7 +27,7 @@ flowchart TB
 
 - 工作区：独立交互区域，负责编辑状态、可见结果与模块动作。
 - 连接配置：连接目标的元数据；与正在运行的会话分开，不含秘密字段。
-- 凭据：临时会话内存，不参与配置 JSON 和发布资产。
+- 数据库凭据：临时会话内存，不参与配置 JSON 和发布资产。SSH 密码按用户选择保存在本机 0600 shell.json，普通文本字段显示；只通过原生 askpass 回调传给 OpenSSH，不进入 argv/env 或发布资产。
 - 会话：SQL 连接池、Redis 连接、HTTP Client 或 PTY。由用户建立与关闭，不因切换工作区被隐式重建。
 - 任务：一次读取、查询或传输。拥有并发/时间/内存上限，以及当前会话的身份；未来取消必须核实服务端语义。
 - 结果：有界的展示内容。数量截断、客户端超时、服务器取消是不同状态。
@@ -50,7 +50,7 @@ flowchart TB
 
 ## 更新身份
 
-产品显示名 `cs-tool-x`；正式 Bundle ID `cc.anjing.cs-tool-x`；开发包 `.dev`。正式与开发包使用分离的元数据配置空间；均不保存连接凭据。OTA 私钥为仓库外、当前用户所有的 0600 本地文件，公钥与 macos-x 独立。应用使用 ad-hoc 完整性签名，不依赖代码签名钥匙串；更新来源由 Ed25519 归档/feed 签名认证。开发包关闭 OTA。
+产品显示名 `cs-tool-x`；正式 Bundle ID `cc.anjing.cs-tool-x`；开发包 `.dev`。正式与开发包使用分离的元数据配置空间；数据库连接均不保存凭据；SSH 密码可由用户选择明文保存在各自本机配置空间。OTA 私钥为仓库外、当前用户所有的 0600 本地文件，公钥与 macos-x 独立。应用使用 ad-hoc 完整性签名，不依赖代码签名钥匙串；更新来源由 Ed25519 归档/feed 签名认证。开发包关闭 OTA。
 
 参考：[SwiftTerm](https://github.com/migueldeicaza/SwiftTerm)、[SQLx](https://docs.rs/sqlx/0.8.6/sqlx/)、[libssh2 Session 行为](https://docs.rs/ssh2/latest/ssh2/struct.Session.html)、[Sparkle 签名机制](https://sparkle-project.org/documentation/)。
 
