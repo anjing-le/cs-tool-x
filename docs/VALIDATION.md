@@ -129,3 +129,5 @@ CLI 临时新增 fixture.invalid 配置后重启 GUI，可见该条目；通过 
 Swift 22 项测试通过，1 项隔离数据库大帧 fixture 本轮未启动而跳过；Rust 3 项单测通过，隔离适配器 fixture 本轮跳过。新增检查包括筛选后原行映射、完整已加载字段搜索、SQL 标识符引用、Redis DB 元数据解析与 500 行/8 MiB 限制。AppKit 离屏组件检查通过连接筛选、浏览对象筛选、查询入口、模式切换保留草稿、新数据库连接保留兄弟目录及目录预算清理；未把离屏检查当作安装后点击验收。
 
 debug 与正式包 CLI 回归通过；正式包新引擎对四个已选目标完成目录读取和只读查询：SQL SELECT 1、Redis 有界无匹配 SCAN、ES size=0 搜索，不读取业务记录正文。连接配置在检查前后不变，完整归档可读且权限为 0600；具体地址、账号、密码及目录清单只保留本机 ignored 记录。
+
+[0.0.9 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43595387662) 全部通过，包含新浏览/查询组件、连接过滤、草稿保留和元数据预算回归。[0.0.9](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.9) 已发布；0.0.8 → 0.0.9 标识、公钥、feed 与递增 build 验证、归档/feed 签名及篡改拒绝通过，公开 ZIP/校验和/feed 与本地已验签文件一致，latest feed 匹配。临时 .app 已移入废纸篓，历史 ZIP 保留。安装后验收等待用户在现有客户端完成更新，窗口操作工具当前不可用。
