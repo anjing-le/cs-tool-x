@@ -2,6 +2,7 @@
 
 The project's own code is distributed under the MIT license. Dependencies retain their own licenses.
 
+- [Swift Argument Parser 1.8.2](https://github.com/apple/swift-argument-parser): Apache-2.0; the license is copied from the locked checkout into `Resources/ArgumentParser-LICENSE.txt` in the application.
 - [Sparkle 2.10.0](https://github.com/sparkle-project/Sparkle): its license is retained in `Resources/Sparkle-LICENSE.txt` and embedded in the application.
 - [SwiftTerm 1.20.0](https://github.com/migueldeicaza/SwiftTerm): MIT; the full copyright and license notices are in `Resources/SwiftTerm-LICENSE.txt` and embedded in the application.
 - Rust dependencies, including SQLx, Tokio, Redis, Reqwest, SQLParser and their transitive dependencies, are pinned in `engine/Cargo.lock`. Available locked crate license texts are collected into `Resources/Rust-THIRD-PARTY-LICENSES.txt` for the source and application distribution. Platform-specific crates not built on this machine link to their upstream crate sources.

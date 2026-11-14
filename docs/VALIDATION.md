@@ -77,3 +77,15 @@ release 应用通过 `codesign --verify --deep --strict`。更新私钥从仓库
 已核对单一正式安装；运行中透明 Dock PNG 保留。真实地址/密码在暂存源码及更新 ZIP 的扫描均未发现，ZIP 不含 shell.json；此检查不等于通用秘密扫描服务。完整性、0.0.5 → 0.0.6 身份/公钥/feed/build、归档/feed 验签与篡改负例通过。[CI](https://github.com/anjing-le/cs-tool-x/actions/runs/43557918620) 全部通过。[0.0.6](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.6) 公开资产经原生 URLSession 匿名下载，与本地已验签 ZIP、校验和、feed 一致，latest feed 匹配。
 
 本轮未验收上传、图形化 SFTP 文件管理器、断线续传、巨大文件性能或完整 OTA 安装；数据库凭据仍不落盘。
+
+## 0.0.7 CLI 基础
+
+新增独立 ToolCLI，复用 ToolCore 的配置、密码助手与 Rust 数据引擎；不链接 AppKit/SwiftUI/SwiftTerm/Sparkle，不启动 GUI。正式包含 CLI，命令安装只创建指向现有包的符号链接。
+
+本机 Swift 16 项测试，1 项隔离数据库 fixture 因环境跳过，0 失败。新增测试覆盖配置原子替换、0600 备份、旧 revision 拒绝、并发更新不丢条目、旧格式配置读取、配置大小限制，以及 stdout/stderr 同时输出、输出超限、超时、stdin 与非零退出。
+
+CLI 隔离回归对 debug 和随包 release 二进制均通过：稳定 JSON/退出码、无参数帮助、未知参数不回显、显式秘密读取、更新/删除 revision、8 个独立 CLI 并发创建、相同 revision 竞争只能成功一次、输入限制、无效远端脚本/路径拒绝、数据库配置禁止保存凭据。模拟引擎证明 hello/connect/run/disconnect、超大整数文本保真及退出后 worker 消失；不代表真实数据库查询已验收。安装脚本验证创建、重复运行及拒绝覆盖其他命令。
+
+使用已授权的本机真实服务器配置执行 SSH 只读标记和 SFTP 当前目录列表，均退出 0，无截断，无远端写入。未新增真实数据库 CLI、上传/下载、大目录/文件、断线续传或服务端取消验收。
+
+release 构建完整性、0.0.6 → 0.0.7 标识/公钥/feed/build 兼容、归档/feed 验签和篡改拒绝通过。对源码与 ZIP 检查本机服务器地址/密码未发现，ZIP 无连接配置。此次尚未安装替换当前 0.0.6 GUI，GUI 配置重载与冲突提示的界面交互未实测；该行为由共享存储检查、编译及测试提供当前证据。日常安装仍一份，临时应用包在完成归档后移入废纸篓；实际 OTA 安装由用户确认。

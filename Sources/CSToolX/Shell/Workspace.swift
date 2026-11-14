@@ -13,19 +13,8 @@ enum Ink {
   static let line = Color(red: 0.42, green: 0.43, blue: 0.36).opacity(0.17)
 }
 
-struct Server: Identifiable, Codable, Equatable, Sendable {
-  let id: Int
-  var name: String
-  var host: String
-  var group: String
-  var port: Int = 22
-  var user: String = ""
-  var password: String? = nil
-  var notes: String? = nil
-  var tint: Color { Ink.sage }
-  var local: Bool { id == -1 }
-  static let localServer = Server(id: -1, name: "本地终端", host: "localhost", group: "本机")
-}
+typealias Server = ShellServer
+extension ShellServer { var tint: Color { Ink.sage } }
 @MainActor
 final class Session: ObservableObject, Identifiable {
   let id = UUID()
@@ -62,40 +51,6 @@ final class Session: ObservableObject, Identifiable {
     second?.stop()
   }
 }
-struct ShellConfiguration: Codable, Sendable {
-  var servers: [Server]
-  var groups: [String]
-}
-actor ShellStore {
-  private var revision = -1
-  static var configurationURL: URL {
-    FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-      .appendingPathComponent(
-        Bundle.main.bundleIdentifier?.hasSuffix(".dev") == true ? "cs-tool-x-dev" : "cs-tool-x",
-        isDirectory: true
-      ).appendingPathComponent("shell.json")
-  }
-  private var url: URL { Self.configurationURL }
-  func load() throws -> ShellConfiguration? {
-    guard FileManager.default.fileExists(atPath: url.path) else { return nil }
-    let data = try Data(contentsOf: url)
-    guard data.count <= 1024 * 1024 else { throw ToolError.message("服务器配置过大。") }
-    let config = try JSONDecoder().decode(ShellConfiguration.self, from: data)
-    guard config.servers.count <= 100, config.groups.count <= 50 else {
-      throw ToolError.message("服务器配置超过上限。")
-    }
-    return config
-  }
-  func save(_ config: ShellConfiguration, revision: Int) throws {
-    guard revision >= self.revision else { return }
-    self.revision = revision
-    try FileManager.default.createDirectory(
-      at: url.deletingLastPathComponent(), withIntermediateDirectories: true,
-      attributes: [.posixPermissions: 0o700])
-    try JSONEncoder().encode(config).write(to: url, options: .atomic)
-    try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: url.path)
-  }
-}
 @MainActor
 final class Workspace: ObservableObject {
   @Published var servers: [Server] = []
@@ -110,14 +65,23 @@ final class Workspace: ObservableObject {
   private var noticeTask: Task<Void, Never>?
   private var revision = 0
   private let store = ShellStore()
-  init() {
+  private var reloadSerial = 0
+  private var fileRevision = ConfigurationFile.missingRevision
+  private var saveTask: Task<Void, Never>?
+  init() { reloadConfiguration() }
+  func reloadConfiguration() {
+    guard sidebarPanel == nil, saveTask == nil else { return }
+    reloadSerial += 1
+    let generation = reloadSerial
+    let current = revision
     Task { [weak self] in
       guard let self else { return }
       do {
-        if let config = try await store.load(), revision == 0 {
-          servers = config.servers
-          groups = config.groups.isEmpty ? ["日常开发"] : config.groups
-        }
+        let loaded = try await store.snapshot()
+        guard revision == current, reloadSerial == generation, sidebarPanel == nil, saveTask == nil else { return }
+        servers = loaded.value.servers
+        groups = loaded.value.groups.isEmpty ? ["日常开发"] : loaded.value.groups
+        fileRevision = loaded.revision
       } catch { message(error.localizedDescription) }
     }
   }
@@ -197,12 +161,15 @@ final class Workspace: ObservableObject {
   }
   private func persist() {
     revision += 1
-    let version = revision
+    let current = revision
     let config = ShellConfiguration(servers: servers, groups: groups)
-    Task {
-      do { try await store.save(config, revision: version) } catch {
+    let previous = saveTask
+    saveTask = Task {
+      await previous?.value
+      do { fileRevision = try await store.save(config, expectedRevision: fileRevision) } catch {
         message(error.localizedDescription)
       }
+      if revision == current { saveTask = nil }
     }
   }
   func open(_ server: Server) {

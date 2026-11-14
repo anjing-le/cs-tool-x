@@ -14,14 +14,9 @@ import ToolCore
       let parts = item.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
       if parts.count == 2 { environment[String(parts[0])] = String(parts[1]) }
     }
-    environment["SSH_ASKPASS"] = helper.path
-    environment["SSH_ASKPASS_REQUIRE"] = "force"
-    environment["CSTOOLX_ASKPASS_EXECUTABLE"] = executable.path
-    environment["CSTOOLX_SSH_CONFIG"] = ShellStore.configurationURL.path
-    environment["CSTOOLX_SSH_SERVER_ID"] = String(server.id)
-    environment["CSTOOLX_SSH_HOST"] = server.host
-    environment["CSTOOLX_SSH_USER"] = server.user
-    environment["CSTOOLX_SSH_PORT"] = String(server.port)
-    return environment.map { "\($0.key)=\($0.value)" }
+    return try SSHLaunch.environment(
+      server: server, configuration: ShellStore.configurationURL,
+      helper: helper, executable: executable, base: environment
+    ).map { "\($0.key)=\($0.value)" }
   }
 }

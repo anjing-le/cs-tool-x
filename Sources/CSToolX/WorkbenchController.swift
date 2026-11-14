@@ -6,6 +6,10 @@ import ToolCore
 final class WorkbenchController: NSWindowController {
   private let engine: EngineClient
   private var profiles: [ConnectionProfile] = []
+  private var profileRevision = ConfigurationFile.missingRevision
+  private var profileSaveTask: Task<Void, Never>?
+  private var profileSaveSerial = 0
+  private var reloadSerial = 0
   private var temporary: [ConnectionProfile] = []
   private var dataViews: [UUID: DataWorkspace] = [:]
   private var catalogs: [UUID: QueryOutput] = [:]
@@ -71,17 +75,29 @@ final class WorkbenchController: NSWindowController {
       dataViews[id]?.preview(catalog.rows[row])
     }
     goHome()
+    reloadConfiguration()
+  }
+  func reloadConfiguration() {
+    guard window?.attachedSheet == nil, profileSaveTask == nil else { return }
+    shellModel?.reloadConfiguration()
+    reloadSerial += 1
+    let generation = reloadSerial
+    let current = profileSaveSerial
     Task { [weak self] in
-      let result = await Task.detached { Result { try ProfileStore().load() } }.value
-      guard let self else { return }
+      let result = await Task.detached { Result { try ProfileStore().snapshot() } }.value
+      guard let self, window?.attachedSheet == nil, profileSaveTask == nil,
+        profileSaveSerial == current, reloadSerial == generation
+      else { return }
       switch result {
       case .success(let loaded):
-        profiles = loaded
+        profiles = loaded.value
+        profileRevision = loaded.revision
         refreshConnections()
       case .failure(let error): Theme.error(error, window: window)
       }
     }
   }
+
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   private func prepareDataModule() {
     let context = NSView()
@@ -261,11 +277,21 @@ final class WorkbenchController: NSWindowController {
         profiles.removeAll { $0.id == profile.id }
         profiles.append(profile)
         let snapshot = profiles
-        Task {
-          do { try await Task.detached { try ProfileStore().save(snapshot) }.value } catch {
+        profileSaveSerial += 1
+        let saveSerial = profileSaveSerial
+        let previous = profileSaveTask
+        profileSaveTask = Task {
+          await previous?.value
+          let expected = self.profileRevision
+          do {
+            self.profileRevision = try await Task.detached {
+              try ProfileStore().save(snapshot, expectedRevision: expected)
+            }.value
+          } catch {
             Theme.error(
               ToolError.message("已连接，但配置保存失败：\(error.localizedDescription)"), window: window)
           }
+          if self.profileSaveSerial == saveSerial { self.profileSaveTask = nil }
         }
       } else {
         temporary.removeAll { $0.id == profile.id }

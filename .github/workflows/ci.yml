@@ -24,6 +24,10 @@ jobs:
         env:
           CSTOOLX_ENGINE: ${{ github.workspace }}/engine/target/debug/cs-tool-engine
         run: swift test --disable-keychain --force-resolved-versions
+      - name: CLI contract and concurrent configuration
+        run: |
+          swift build --disable-keychain --force-resolved-versions --product cs-tool-x
+          python3 tools/cli-regression.py --binary "$(swift build --disable-keychain --force-resolved-versions --show-bin-path)/cs-tool-x"
       - name: Cursor ownership regression
         run: |
           mkdir -p .local
