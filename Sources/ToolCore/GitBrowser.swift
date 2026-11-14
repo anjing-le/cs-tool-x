@@ -39,6 +39,14 @@ public struct GitRepository: Codable, Sendable, Identifiable {
   public let references: [GitReference]
   public let limited: Bool
   public let error: String?
+  public static func unloaded(_ location: GitLocation) -> GitRepository {
+    GitRepository(location: location, branch: "", head: "", references: [], limited: false, error: nil)
+  }
+  public func clippedReferences(to count: Int) -> GitRepository {
+    GitRepository(location: location, branch: branch, head: head,
+      references: Array(references.prefix(max(0, count))),
+      limited: limited || references.count > count, error: error)
+  }
   public var branchLabel: String {
     branch.isEmpty ? (head.isEmpty ? "空仓库" : "Detached " + head.prefix(8)) : branch
   }
@@ -100,12 +108,14 @@ public enum GitBrowser {
   public static func colorIndex(_ key: String) -> Int {
     Int(Array(SHA256.hash(data: Data(key.utf8)))[0]) % 8
   }
-  public static func scan(directory: String) async throws -> GitScan {
-    let task = Task.detached(priority: .userInitiated) { try discover(directory) }
+  public static func scan(
+    directory: String, progress: (@Sendable ([GitLocation]) -> Void)? = nil
+  ) async throws -> GitScan {
+    let task = Task.detached(priority: .userInitiated) { try discover(directory, progress: progress) }
     return try await withTaskCancellationHandler(
       operation: { try await task.value }, onCancel: { task.cancel() })
   }
-  private static func discover(_ directory: String) throws -> GitScan {
+  private static func discover(_ directory: String, progress: (@Sendable ([GitLocation]) -> Void)?) throws -> GitScan {
     guard directory.utf8.count <= 16_384, !directory.contains("\0") else {
       throw ConfigurationError.invalid
     }
@@ -123,9 +133,15 @@ public enum GitBrowser {
     var visited = 0
     var limited = false
     let started = ProcessInfo.processInfo.systemUptime
+    var lastProgress = -Double.infinity
     func add(_ url: URL, bare: Bool) {
       guard let path = try? canonicalPath(url.path), seen.insert(path).inserted else { return }
       locations.append(GitLocation(path: path, name: url.lastPathComponent, bare: bare))
+      let now = ProcessInfo.processInfo.systemUptime
+      if now - lastProgress >= 0.1 {
+        lastProgress = now
+        progress?(locations)
+      }
     }
     func inspect(_ url: URL) {
       let dot = url.appendingPathComponent(".git")

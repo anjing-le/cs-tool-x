@@ -21,6 +21,7 @@ import ToolCore
     }
     try await idle()
     precondition(workspace.repositories.count == 3, "UI discovers every fixture repository")
+    precondition(workspace.loadedRepositoryIDs.count == 1, "Only the selected repository reads refs initially")
     func allViews(_ view: NSView) -> [NSView] { [view] + view.subviews.flatMap(allViews) }
     let sidebar = GitSidebar()
     sidebar.update(workspace.repositories)
@@ -57,12 +58,29 @@ import ToolCore
     precondition(
       graph.row?.segments.filter { $0.part == .outgoing }.count == 2,
       "Merge graph has two real parent edges")
+    let subjectColumn = log.tableColumns.firstIndex { $0.identifier.rawValue == "subject" }!
+    let subjectCell = log.view(atColumn: subjectColumn, row: 0, makeIfNecessary: true) as! GitSubjectCell
+    precondition(!subjectCell.author.isEmpty && !subjectCell.timestamp.isEmpty && subjectCell.shortHash.count == 8,
+      "Author, date and short SHA are present without opening details")
+    let sideOwner = actualSidebar.dataSource as! GitSidebar
+    let selectedID = workspace.loadedRepositoryIDs.first!
+    let other = sideOwner.rows.firstIndex { $0.repository != nil && $0.repository!.id != selectedID }!
+    actualSidebar.selectRowIndexes(IndexSet(integer: other), byExtendingSelection: false)
+    actualSidebar.selectRowIndexes(IndexSet(integer: sideOwner.rows.firstIndex { $0.repository?.id == selectedID }!), byExtendingSelection: false)
+    try await idle()
+    precondition(workspace.loadedRepositoryIDs.count == 1, "Cancelled selection cannot apply stale refs")
+    actualSidebar.selectRowIndexes(IndexSet(integer: other), byExtendingSelection: false)
+    try await idle()
+    precondition(workspace.loadedRepositoryIDs.count == 2, "Selecting a second repository loads only that repository")
+    actualSidebar.selectRowIndexes(IndexSet(integer: sideOwner.rows.firstIndex { $0.repository?.id == selectedID }!), byExtendingSelection: false)
+    try await idle()
+    precondition(workspace.loadedRepositoryIDs.count == 2, "Returning to a loaded repository reuses refs")
     let fullWidth = log.enclosingScrollView!.frame.width
     log.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
     try await idle()
     precondition(
       log.headerView == nil && log.tableColumns.count == 3,
-      "History omits headers and author/date/hash columns")
+      "History keeps metadata inside rows without column headings")
     let files = allViews(workspace).compactMap { $0 as? NSTableView }.first {
       $0.tableColumns.contains { $0.title == "变更文件" }
     }!
@@ -70,6 +88,13 @@ import ToolCore
       log.enclosingScrollView!.frame.width < fullWidth, "Details appear only after selection")
     precondition(files.headerView == nil, "Changed files omit redundant column headings")
     precondition(files.numberOfRows == 1, "Selected merge shows first-parent changed files")
+    let expandedWindowSize = window.frame.size
+    window.setContentSize(NSSize(width: 980, height: 680))
+    workspace.layoutSubtreeIfNeeded()
+    precondition(log.rowHeight == 49, "Narrow history puts metadata on a second line")
+    window.setFrame(NSRect(origin: window.frame.origin, size: expandedWindowSize), display: false)
+    workspace.layoutSubtreeIfNeeded()
+
     let handles = allViews(workspace).compactMap { $0 as? PaperResizeHandle }
     precondition(
       handles.count == 2 && handles.allSatisfy { $0.writingCursorRole == .columnResize },

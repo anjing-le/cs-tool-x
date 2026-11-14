@@ -13,6 +13,7 @@ import ToolCore
   let scroll = GitLogScroll()
   let table = GitSidebarTable()
   private var repositories: [GitRepository] = []
+  private var pending = Set<String>()
   private(set) var rows: [Row] = []
   private var expanded = Set<String>()
   private var selectedID = "all:root"
@@ -50,7 +51,8 @@ import ToolCore
     table.setAccessibilityLabel("Git 仓库与分支树")
     table.setAccessibilityHelp("双击或回车展开、收起仓库；左右方向键展开、收起，单击选择历史。")
   }
-  func update(_ repositories: [GitRepository]) {
+  func update(_ repositories: [GitRepository], pending: Set<String> = []) {
+    self.pending = pending
     self.repositories = repositories
     rebuild()
   }
@@ -117,7 +119,7 @@ import ToolCore
     let id = NSUserInterfaceItemIdentifier("git-side")
     let view = (table.makeView(withIdentifier: id, owner: self) as? GitSideCell) ?? GitSideCell()
     view.identifier = id
-    view.configure(value, selected: value.id == selectedID)
+    view.configure(value, selected: value.id == selectedID, pending: pending.contains(value.repository?.id ?? ""))
     return view
   }
   func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
@@ -179,7 +181,7 @@ import ToolCore
     textField = title
   }
   required init?(coder: NSCoder) { nil }
-  func configure(_ row: GitSidebar.Row, selected: Bool) {
+  func configure(_ row: GitSidebar.Row, selected: Bool, pending: Bool) {
     inset.constant = CGFloat(10 + row.depth * 18)
     title.stringValue = String(row.title.prefix(200))
     title.font = Theme.font(13, weight: row.reference?.current == true ? .medium : .regular)
@@ -194,12 +196,13 @@ import ToolCore
     selection.isHidden = !selected
     // Only the selected repository needs a current-branch cue. Errors stay visible.
     detail.stringValue = row.reference == nil ? row.repository.map {
+      if pending { return selected ? "待读取" : "" }
       if $0.error != nil { return "读取失败" }
       if $0.limited { return selected ? $0.branchLabel + " · …" : "…" }
       return selected ? $0.branchLabel : ""
     } ?? "" : ""
     toolTip = row.repository.map {
-      $0.id + "\n" + ($0.error ?? (row.reference?.fullName ?? $0.branchLabel))
+      $0.id + "\n" + (pending ? "分支尚未读取" : ($0.error ?? (row.reference?.fullName ?? $0.branchLabel)))
         + ($0.limited ? "\n部分分支超出读取上限" : "")
     }
     title.setAccessibilityLabel(row.title)

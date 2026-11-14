@@ -7,7 +7,8 @@ public struct GitRootPage: Sendable {
 }
 extension GitBrowser {
   public static func logs(
-    _ repositories: [GitRepository], filter: GitLogFilter, offsets: [String: Int], limit: Int
+    _ repositories: [GitRepository], filter: GitLogFilter, offsets: [String: Int], limit: Int,
+    progress: (@Sendable (GitRootPage) async -> Void)? = nil
   ) async throws -> [GitRootPage] {
     guard repositories.count <= maxRepositories else { throw ConfigurationError.invalid }
     var output: [GitRootPage] = []
@@ -33,6 +34,7 @@ extension GitBrowser {
       }
       while let result = try await group.next() {
         output.append(result)
+        await progress?(result)
         try Task.checkCancellation()
         if let repository = iterator.next() { submit(repository) }
       }

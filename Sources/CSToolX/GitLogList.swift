@@ -125,6 +125,8 @@ enum GitPalette {
     }
     let desired = max(220, width - fixed)
     if abs(subject.width - desired) > 0.5 { subject.width = desired }
+    let height: CGFloat = desired >= 650 ? 31 : 49
+    if table.rowHeight != height { table.rowHeight = height }
   }
   func numberOfRows(in tableView: NSTableView) -> Int { commits.count }
   func tableView(_ tableView: NSTableView, viewFor column: NSTableColumn?, row: Int) -> NSView? {
@@ -146,6 +148,10 @@ enum GitPalette {
         (table.makeView(withIdentifier: id, owner: self) as? GitSubjectCell) ?? GitSubjectCell()
       view.identifier = id
       view.subject = commit.subject
+      view.author = commit.author
+      view.timestamp = Self.date.string(from: Date(timeIntervalSince1970: Double(commit.timestamp)))
+      view.shortHash = String(commit.oid.prefix(8))
+      view.setAccessibilityLabel(commit.subject + "，" + commit.author + "，" + view.timestamp + "，" + view.shortHash)
       view.references = references[commit.id] ?? []
       view.detachedHead =
         repositories[commit.repository].map { $0.head == commit.oid && $0.branch.isEmpty } ?? false
@@ -250,6 +256,7 @@ enum GitPalette {
 }
 @MainActor final class GitSubjectCell: NSView {
   var subject = ""
+  var author = "", timestamp = "", shortHash = ""
   var references: [GitReference] = []
   var detachedHead = false
   override func draw(_ dirtyRect: NSRect) {
@@ -261,11 +268,15 @@ enum GitPalette {
       a.current != b.current ? a.current : a.kind.rawValue < b.kind.rawValue
     }.prefix(5).map { (String($0.name.prefix(60)), GitPalette.reference($0)) }
     if detachedHead { labels.insert(("HEAD", GitPalette.head), at: 0) }
+    let compact = bounds.width < 650
+    let contentWidth = compact ? bounds.width : bounds.width - 310
+    let subjectY: CGFloat = compact ? bounds.height - 25 : 7
+    let labelY: CGFloat = compact ? bounds.height - 26 : 5
     var left: CGFloat = 5
     for (text, color) in labels {
       let width = min(140, (text as NSString).size(withAttributes: [.font: font]).width + 14)
-      if left + width > bounds.width * 0.6 { break }
-      let rect = NSRect(x: left, y: 5, width: width, height: bounds.height - 10)
+      if left + width > contentWidth * 0.6 { break }
+      let rect = NSRect(x: left, y: labelY, width: width, height: 21)
       CrayonInk.swatch(rect, color: color)
       let style = NSMutableParagraphStyle()
       style.lineBreakMode = .byTruncatingTail
@@ -278,11 +289,27 @@ enum GitPalette {
     paragraph.lineBreakMode = .byTruncatingTail
     (String(subject.prefix(1000)) as NSString).draw(
       in: NSRect(
-        x: left + 4, y: 7, width: max(0, bounds.width - left - 9), height: bounds.height - 10),
+        x: left + 4, y: subjectY, width: max(0, contentWidth - left - 9), height: 22),
       withAttributes: [
         .font: Theme.font(14), .foregroundColor: Theme.ink,
         .paragraphStyle: paragraph,
       ])
+    let metadataY: CGFloat = compact ? 3 : 7
+    let metadataX: CGFloat = compact ? 9 : contentWidth + 6
+    let available = max(0, bounds.width - metadataX - 8)
+    let dateWidth: CGFloat = min(116, available * 0.48)
+    let hashWidth: CGFloat = 62
+    let authorWidth = max(0, available - dateWidth - hashWidth - 12)
+    for (text, x, width, mono) in [
+      (author, metadataX, authorWidth, false),
+      (timestamp, metadataX + authorWidth + 6, dateWidth, false),
+      (shortHash, bounds.width - hashWidth - 8, hashWidth, true),
+    ] {
+      (String(text.prefix(200)) as NSString).draw(
+        in: NSRect(x: x, y: metadataY, width: width, height: 19),
+        withAttributes: [.font: mono ? NSFont.monospacedSystemFont(ofSize: 10, weight: .regular) : Theme.font(10.5),
+          .foregroundColor: Theme.muted, .paragraphStyle: paragraph])
+    }
   }
 }
 

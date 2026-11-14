@@ -16,6 +16,9 @@ import ToolCore
   private let files = GitFilesList()
   private var more: NSButton!
   private var scanTask: Task<Void, Never>?
+  private var metadataTask: Task<Void, Never>?
+  private var metadataSerial = 0
+  private(set) var loadedRepositoryIDs = Set<String>()
   private var logTask: Task<Void, Never>?
   private var detailTask: Task<Void, Never>?
   private var searchTask: Task<Void, Never>?
@@ -23,6 +26,7 @@ import ToolCore
   private var scanSerial = 0, logSerial = 0, detailSerial = 0
   private var locations: [GitLocation] = []
   private(set) var repositories: [GitRepository] = []
+  private var hasInitialSelection = false
   private var selectedRepository: String?
   private var selectedReference = ""
   private var filterBar: NSStackView!
@@ -43,7 +47,7 @@ import ToolCore
   private var scanNote = ""
   private var needsScan = false, needsLog = false
   private var selectedCommit: GitCommit?
-  var hasPendingWork: Bool { scanTask != nil || logTask != nil || detailTask != nil }
+  var hasPendingWork: Bool { scanTask != nil || metadataTask != nil || logTask != nil || detailTask != nil }
   private var active = false
   private var currentFilter = GitLogFilter()
 
@@ -159,10 +163,10 @@ import ToolCore
     }
     sidebar.onSelect = { [weak self] repo, reference in
       guard let self else { return }
+      hasInitialSelection = true
       selectedRepository = repo?.id
       selectedReference = reference?.fullName ?? ""
-      validateReference()
-      reloadLog()
+      readSelection()
     }
     history.onSelect = { [weak self] in self?.showCommit($0) }
     root = UserDefaults.standard.string(forKey: "git.browser.directory") ?? ""
@@ -240,7 +244,7 @@ import ToolCore
     if needsScan {
       scanDirectory(root)
     } else if needsLog {
-      reloadLog()
+      readSelection()
     } else if let selectedCommit, detailTask == nil {
       showCommit(selectedCommit)
     }
@@ -248,6 +252,10 @@ import ToolCore
   func pause() {
     active = false
     if scanTask != nil { needsScan = true }
+    if metadataTask != nil { needsLog = true }
+    metadataTask?.cancel()
+    metadataTask = nil
+    metadataSerial += 1
     if logTask != nil { needsLog = true }
     scanTask?.cancel()
     scanTask = nil
@@ -280,6 +288,10 @@ import ToolCore
     if !root.isEmpty { scanDirectory(root) } else { chooseDirectory() }
   }
   func scanDirectory(_ path: String) {
+    metadataTask?.cancel()
+    metadataTask = nil
+    metadataSerial += 1
+    loadedRepositoryIDs = []
     scanTask?.cancel()
     logTask?.cancel()
     detailTask?.cancel()
@@ -302,34 +314,34 @@ import ToolCore
     repositories = []
     locations = []
     pages = [:]
+    hasInitialSelection = false
     selectedRepository = nil
     selectedReference = ""
+    scanNote = ""
+    offsets = [:]
+    moreRoots = []
+    logErrors = [:]
     sidebar.update([])
     history.update([], repositories: [])
     clearDetail()
     scanTask = Task { [weak self] in
       guard let self else { return }
       do {
-        let scan = try await GitBrowser.scan(directory: path)
+        let scan = try await GitBrowser.scan(directory: path) { [weak self] found in
+          Task { @MainActor [weak self] in
+            guard let self, self.scanSerial == serial, self.scanTask != nil else { return }
+            self.discovered(found)
+          }
+        }
         guard !Task.isCancelled, scanSerial == serial else { return }
         root = scan.root
-        locations = scan.repositories
         UserDefaults.standard.set(scan.root, forKey: "git.browser.directory")
         scanNote = scan.limited ? "目录扫描已达上限，请选择更小目录" : ""
         if !scan.warnings.isEmpty { scanNote += (scanNote.isEmpty ? "" : "；") + "部分目录无法读取" }
         status.toolTip = scan.warnings.joined(separator: "\n")
-        status.stringValue = "发现 \(locations.count) 个仓库，正在读取分支…"
-        let loaded = try await GitBrowser.repositories(locations) { [weak self] repository in
-          await self?.didRead(repository, serial: serial)
-        }
-        guard !Task.isCancelled, scanSerial == serial else { return }
-        repositories = loaded
-        sidebar.update(loaded)
+        discovered(scan.repositories)
         scanTask = nil
-        selectedRepository = loaded.first?.id
-        sidebar.select(repository: selectedRepository)
-        validateReference()
-        reloadLog()
+        updateStatus()
       } catch is CancellationError {} catch {
         guard scanSerial == serial else { return }
         scanTask = nil
@@ -337,15 +349,83 @@ import ToolCore
       }
     }
   }
-  private func didRead(_ repository: GitRepository, serial: Int) {
-    guard scanSerial == serial else { return }
-    repositories.append(repository)
-    let now = ProcessInfo.processInfo.systemUptime
-    guard now - lastProgress >= 0.08 else { return }
-    lastProgress = now
+  private func discovered(_ found: [GitLocation]) {
+    let existing = Set(locations.map(\.id))
+    let additions = found.filter { !existing.contains($0.id) }
+    guard !additions.isEmpty else { return }
+    locations += additions
+    let known = Set(repositories.map(\.id))
+    repositories += locations.filter { !known.contains($0.id) }.map(GitRepository.unloaded)
     repositories.sort { $0.id.localizedStandardCompare($1.id) == .orderedAscending }
-    sidebar.update(repositories)
-    status.stringValue = "正在读取分支 \(repositories.count) / \(locations.count)"
+    refreshSidebar()
+    if !hasInitialSelection, let first = repositories.first {
+      hasInitialSelection = true
+      selectedRepository = first.id
+      sidebar.select(repository: first.id)
+      readSelection()
+    } else if selectedRepository == nil, metadataTask == nil {
+      readSelection()
+    }
+  }
+  private func refreshSidebar() {
+    sidebar.update(repositories, pending: Set(repositories.map(\.id)).subtracting(loadedRepositoryIDs))
+  }
+  private func readSelection() {
+    metadataTask?.cancel()
+    metadataTask = nil
+    metadataSerial += 1
+    let serial = metadataSerial
+    let missing = targetRepositories.filter { !loadedRepositoryIDs.contains($0.id) }.map(\.location)
+    if missing.isEmpty {
+      validateReference()
+      reloadLog()
+      return
+    }
+    // Clear the previous selection immediately; no stale commits under the new repository.
+    detailTask?.cancel()
+    detailTask = nil
+    detailSerial += 1
+    logTask?.cancel()
+    logTask = nil
+    logSerial += 1
+    clearDetail()
+    history.update([], repositories: repositories)
+    pages = [:]
+    offsets = [:]
+    moreRoots = []
+    logErrors = [:]
+    more.isEnabled = false
+    more.isHidden = true
+    status.stringValue = "正在读取所选仓库…"
+    metadataTask = Task { [weak self] in
+      guard let self else { return }
+      do {
+        _ = try await GitBrowser.repositories(missing) { [weak self] read in
+          await self?.didRead(read, serial: serial)
+        }
+        guard !Task.isCancelled, metadataSerial == serial else { return }
+        metadataTask = nil
+        if targetRepositories.contains(where: { !self.loadedRepositoryIDs.contains($0.id) }) {
+          readSelection()
+        } else {
+          validateReference()
+          reloadLog()
+        }
+      } catch is CancellationError {} catch {
+        guard metadataSerial == serial else { return }
+        metadataTask = nil
+        status.stringValue = "读取失败：" + error.localizedDescription
+      }
+    }
+  }
+  private func didRead(_ repository: GitRepository, serial: Int) {
+    guard metadataSerial == serial, let index = repositories.firstIndex(where: { $0.id == repository.id }) else { return }
+    let used = repositories.filter { $0.id != repository.id }.reduce(0) { $0 + $1.references.count }
+    let room = max(0, GitBrowser.maxTotalReferences - used)
+    // Preserve the existing total-reference budget across lazy reads.
+    repositories[index] = repository.clippedReferences(to: room)
+    loadedRepositoryIDs.insert(repository.id)
+    refreshSidebar()
   }
   private func validateReference() {
     if !selectedReference.isEmpty,
@@ -391,7 +471,7 @@ import ToolCore
     reloadLog()
   }
   private func reloadLog() {
-    guard scanTask == nil else {
+    guard targetRepositories.allSatisfy({ loadedRepositoryIDs.contains($0.id) }) else {
       needsLog = true
       return
     }
@@ -437,26 +517,14 @@ import ToolCore
     logTask = Task { [weak self] in
       guard let self else { return }
       do {
-        let result = try await GitBrowser.logs(
-          targets, filter: filter, offsets: requestOffsets, limit: limit)
-        guard !Task.isCancelled, logSerial == serial else { return }
-        for rootPage in result {
-          if let page = rootPage.page {
-            pages[rootPage.repository, default: []] += page.commits
-            offsets[rootPage.repository] = page.nextOffset
-            if !page.hasMore { moreRoots.remove(rootPage.repository) }
-          } else {
-            logErrors[rootPage.repository] = rootPage.error
-            moreRoots.remove(rootPage.repository)
-          }
+        _ = try await GitBrowser.logs(
+          targets, filter: filter, offsets: requestOffsets, limit: limit
+        ) { [weak self] rootPage in
+          await self?.didReadPage(rootPage, serial: serial)
         }
-        let lists = pages.keys.sorted().compactMap { self.pages[$0] }
-        let repositories = self.repositories
-        let presentation = await Task.detached {
-          GitLogList.prepare(GitBrowser.merge(lists), repositories: repositories)
-        }.value
         guard !Task.isCancelled, logSerial == serial else { return }
-        history.apply(presentation)
+        await presentHistory(serial: serial)
+        guard !Task.isCancelled, logSerial == serial else { return }
         logTask = nil
         updateStatus()
       } catch is CancellationError {} catch {
@@ -466,16 +534,44 @@ import ToolCore
       }
     }
   }
+  private func didReadPage(_ rootPage: GitRootPage, serial: Int) async {
+    guard !Task.isCancelled, logSerial == serial else { return }
+    if let page = rootPage.page {
+      pages[rootPage.repository, default: []] += page.commits
+      offsets[rootPage.repository] = page.nextOffset
+      if !page.hasMore { moreRoots.remove(rootPage.repository) }
+    } else {
+      logErrors[rootPage.repository] = rootPage.error
+      moreRoots.remove(rootPage.repository)
+    }
+    let now = ProcessInfo.processInfo.systemUptime
+    if now - lastProgress >= 0.1 {
+      lastProgress = now
+      await presentHistory(serial: serial)
+    }
+  }
+  private func presentHistory(serial: Int) async {
+    let lists = pages.keys.sorted().compactMap { self.pages[$0] }
+    let repositories = self.repositories
+    let presentation = await Task.detached {
+      GitLogList.prepare(GitBrowser.merge(lists), repositories: repositories)
+    }.value
+    guard !Task.isCancelled, logSerial == serial else { return }
+    history.apply(presentation)
+  }
   private func updateStatus() {
     let count = pages.values.reduce(0) { $0 + $1.count }
     let remaining = GitBrowser.maxLoadedCommits - count
-    more.isEnabled = !moreRoots.isEmpty && remaining >= moreRoots.count && logTask == nil
+    more.isEnabled = !moreRoots.isEmpty && remaining >= moreRoots.count && logTask == nil && metadataTask == nil
     more.isHidden = !more.isEnabled
     var parts = ["\(repositories.count) 个仓库", "\(count) 条提交"]
     if !moreRoots.isEmpty { parts.append(more.isEnabled ? "可继续加载" : "已达 2000 条展示上限，可按仓库或分支缩小范围") }
     if history.graphLimited { parts.append("部分分支图线超出展示预算") }
     if !logErrors.isEmpty { parts.append("\(logErrors.count) 个仓库读取失败") }
     if repositories.contains(where: \.limited) { parts.append("部分分支超出上限") }
+    if metadataTask != nil { parts.append("正在读取所选仓库…") }
+    else if logTask != nil { parts.append("正在读取提交…") }
+    if scanTask != nil { parts.append("正在发现仓库…") }
     if !scanNote.isEmpty { parts.append(scanNote) }
     status.stringValue = parts.joined(separator: " · ")
     status.toolTip =

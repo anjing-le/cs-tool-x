@@ -3,6 +3,16 @@ import XCTest
 
 @testable import ToolCore
 
+private final class ScanProgressProbe: @unchecked Sendable {
+  private let lock = NSLock()
+  private var counts: [Int] = []
+  func record(_ locations: [GitLocation]) { lock.lock(); counts.append(locations.count); lock.unlock() }
+  func values() -> [Int] { lock.lock(); defer { lock.unlock() }; return counts }
+}
+private actor PageProgressProbe {
+  var pages: [GitRootPage] = []
+  func record(_ page: GitRootPage) { pages.append(page) }
+}
 final class GitBrowserTests: XCTestCase {
   func git(_ path: URL, _ args: [String]) throws -> String {
     let process = Process()
@@ -61,7 +71,9 @@ final class GitBrowserTests: XCTestCase {
     _ = try git(nested, ["init", "-b", "empty"])
     try FileManager.default.createSymbolicLink(
       at: root.appendingPathComponent("loop"), withDestinationURL: root)
-    let scan = try await GitBrowser.scan(directory: root.path)
+    let progress = ScanProgressProbe()
+    let scan = try await GitBrowser.scan(directory: root.path, progress: { progress.record($0) })
+    XCTAssertEqual(progress.values().first, 1, "First discovery is delivered before traversal completes")
     XCTAssertEqual(scan.repositories.count, 4)
     XCTAssertFalse(scan.limited)
     let snapshots = try await GitBrowser.repositories(scan.repositories)
@@ -70,6 +82,14 @@ final class GitBrowserTests: XCTestCase {
     )
     XCTAssertEqual(snapshot.branch, "main")
     XCTAssertTrue(snapshot.references.contains { $0.name == "origin/main" && $0.kind == .remote })
+    let streamed = PageProgressProbe()
+    let batch = try await GitBrowser.logs(snapshots, filter: GitLogFilter(), offsets: [:], limit: 2,
+      progress: { await streamed.record($0) })
+    let delivered = await streamed.pages
+    XCTAssertEqual(Set(delivered.map(\.repository)), Set(batch.map(\.repository)))
+    XCTAssertEqual(delivered.count, snapshots.count, "Each repository page is delivered exactly once")
+    XCTAssertEqual(snapshot.clippedReferences(to: 1).references.count, 1)
+    XCTAssertTrue(snapshot.clippedReferences(to: 1).limited)
     let index = try Data(contentsOf: repo.appendingPathComponent(".git/index"))
     let head = try Data(contentsOf: repo.appendingPathComponent(".git/HEAD"))
     let first = try await GitBrowser.log(snapshot, limit: 2)
