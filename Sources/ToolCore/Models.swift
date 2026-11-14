@@ -1,9 +1,10 @@
 import Foundation
 
 public enum ToolModule: String, CaseIterable, Codable, Sendable {
-  case data, terminal, files, requests, utilities
+  case data, terminal, files, requests, utilities, git
   public var title: String {
     switch self {
+    case .git: return "Git"
     case .data: return "数据"
     case .terminal: return "终端"
     case .files: return "文件"
@@ -13,6 +14,7 @@ public enum ToolModule: String, CaseIterable, Codable, Sendable {
   }
   public var symbol: String {
     switch self {
+    case .git: return "arrow.triangle.branch"
     case .data: return "externaldrive"
     case .terminal: return "terminal"
     case .files: return "folder"
@@ -20,7 +22,9 @@ public enum ToolModule: String, CaseIterable, Codable, Sendable {
     case .utilities: return "wrench.and.screwdriver"
     }
   }
-  public var available: Bool { self == .data || self == .terminal || self == .files }
+  public var available: Bool {
+    self == .data || self == .terminal || self == .files || self == .git
+  }
 }
 public enum DatabaseKind: String, CaseIterable, Codable, Sendable, Hashable {
   case mysql, pg, es, redis

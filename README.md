@@ -2,7 +2,7 @@
 
 一个极简的原生 macOS 开发工作台。把连接服务器、查看数据、文件传输以及后续常用开发操作，收进同一个客户端。
 
-长期目标是逐步承接 SSH 终端、SFTP 文件工具、数据库客户端、接口调试和开发小工具的常用流程。当前是 **0.0.10 基础版本**，功能按真实使用逐步打磨，不承诺已完整替代 Xshell、Xftp 或 DataGrip。
+长期目标是逐步承接 SSH 终端、SFTP 文件工具、数据库客户端、接口调试和开发小工具的常用流程。当前是 **0.0.11 基础版本**，功能按真实使用逐步打磨，不承诺已完整替代 Xshell、Xftp 或 DataGrip。
 
 [下载最新版](https://github.com/anjing-le/cs-tool-x/releases/latest) · [项目规划](docs/PLAN.md) · [架构](docs/ARCHITECTURE.md) · [更新与发布](docs/RELEASING.md)
 
@@ -15,7 +15,7 @@
 | Shell 文件栏 | 与终端同一工作区，当前提供附属 SFTP 控制台 | 图形化目录、传输队列、取消与重试 |
 | 接口 / 工具 | 尚未放入首页 | 按日常使用确定具体范围 |
 
-首页沿用 FinanceX 的等宽卡片结构，配色采用 ShellX 暖纸张；Shell 与数据为两个独立入口，进入后为各自工作区，⌘1 返回首页。连接信息可保存在本机；数据库密码/API Key 可按用户选择保存在本机 `data-credentials.json`（0600，不留备份），或只保留在本次会话；SSH 密码可按用户选择明文保存在本机 `shell.json`，编辑界面直接显示，SSH/SFTP 共用。不使用钥匙串。终端和查询历史只在内存中保留。后台没有常驻 HTTP 服务，数据进程与 SSH/SFTP 会话按需启动。
+首页沿用 FinanceX 的等宽卡片结构，配色采用 ShellX 暖纸张；Shell、数据、Git 为三个独立入口，进入后为各自工作区，⌘1 返回首页。连接信息可保存在本机；数据库密码/API Key 可按用户选择保存在本机 `data-credentials.json`（0600，不留备份），或只保留在本次会话；SSH 密码可按用户选择明文保存在本机 `shell.json`，编辑界面直接显示，SSH/SFTP 共用。不使用钥匙串。终端和查询历史只在内存中保留。后台没有常驻 HTTP 服务，数据进程与 SSH/SFTP 会话按需启动。
 
 当前面向 **macOS 14+、Apple Silicon**。Release 使用本地 ad-hoc 完整性签名，OTA 使用 Ed25519 更新包/feed 签名；发布私钥存仓库外 0600 文件，不使用钥匙串。尚未取得 Apple Developer ID 签名与公证；这与下载内容验签、功能验收分别处理。第三方 Mac 的首次启动体验仍待验证。
 
@@ -90,3 +90,5 @@ MIT License。依赖与分发说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTI
 运行中的 Dock 图标由启动回调直接加载透明 `DockIcon.png`，基础 ICNS 保留为回退；退出后的固定项、Finder 显示另行验证。
 
 性能边界、驱动来源、实际验证范围与尚未完成的兼容/压力测试见 [长期性能与兼容契约](docs/PERFORMANCE_COMPATIBILITY.md)。执行 `python3 tools/dependency-inventory.py` 可查看锁定的实际组件版本、来源与校验和；应用不在运行时下载数据库驱动。
+
+Git 入口选择目录后发现各 Git 仓库，展示当前分支、本地/远程分支树和彩色提交历史，支持仓库、分支、作者、日期和提交文本/哈希筛选，点击提交查看详情与变更文件。只读取本地仓库，不 fetch 或执行 Git 写操作；[范围和性能边界](docs/GIT_BROWSER.md)。

@@ -19,6 +19,8 @@ flowchart TB
     UI --> Terminal[SwiftTerm / PTY]
     Terminal --> SSH[系统 OpenSSH]
     Terminal --> SFTP[系统 SFTP 控制台]
+    UI --> GitBrowser[ToolCore 只读 Git 浏览]
+    GitBrowser --> Git[系统 Git：目录/引用/历史/详情，有界子进程]
     UI --> Sparkle[Sparkle：签名 feed / 更新包]
     Sparkle --> Releases[GitHub Releases 独立稳定通道]
 ```
@@ -27,7 +29,7 @@ flowchart TB
 
 - 工作区：独立交互区域，负责编辑状态、可见结果与模块动作。
 - 连接配置：连接目标的元数据；与正在运行的会话分开，不含秘密字段。
-- 数据库凭据：临时会话内存，不参与配置 JSON 和发布资产。SSH 密码按用户选择保存在本机 0600 shell.json，普通文本字段显示；只通过原生 askpass 回调传给 OpenSSH，不进入 argv/env 或发布资产。
+- 数据库凭据：按用户选择保存在本机 0600 data-credentials.json 或临时会话内存，不参与连接元数据 JSON 和发布资产。SSH 密码按用户选择保存在本机 0600 shell.json，普通文本字段显示；只通过原生 askpass 回调传给 OpenSSH，不进入 argv/env 或发布资产。
 - 会话：SQL 连接池、Redis 连接、HTTP Client 或 PTY。由用户建立与关闭，不因切换工作区被隐式重建。
 - 任务：一次读取、查询或传输。拥有并发/时间/内存上限，以及当前会话的身份；未来取消必须核实服务端语义。
 - 结果：有界的展示内容。数量截断、客户端超时、服务器取消是不同状态。
@@ -58,3 +60,5 @@ flowchart TB
 ## 界面复用
 
 首页基于 anjing-financex 当前卡片布局重用：180pt 高、24pt 圆角、等宽自适应、减少动态效果支持。Shell 复用 anjing-shell 的服务器侧栏、同窗编辑面板、搜索语义、标签拖动和可调分屏，真实 PTY 由每块分屏自己的对象持有。切换标签/返回首页只卸载视图，关闭分屏/标签/退出负责释放进程。没有迁入原项目私有素材、示例服务器、模拟输出或假传输状态。图形文件栏显示明确待接入状态，并可进入 SFTP 控制台。
+
+Git 模块的目录遍历、Git 进程和提交图准备都在界面线程外执行，批次代号拒绝过期结果；离开模块取消读取，但保留已显示结果和筛选。分支及提交缓存、进程输出和批次时间有界，详见 [Git 浏览](GIT_BROWSER.md)。

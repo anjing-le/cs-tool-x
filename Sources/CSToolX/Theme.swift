@@ -100,6 +100,7 @@ final class TextTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
   let scroll = NSScrollView()
   var rows: [[String]] = []
   var onSelect: ((Int) -> Void)?
+  var colorForCell: ((Int, Int) -> NSColor?)?
   var onActivate: ((Int, Int) -> Void)?
   init(headers: [String] = [], widths: [CGFloat] = [], header: Bool = true) {
     super.init()
@@ -161,6 +162,7 @@ final class TextTable: NSObject, NSTableViewDataSource, NSTableViewDelegate {
     }
     cell.identifier = id
     cell.textField?.stringValue = rows[row][i]
+    cell.textField?.textColor = colorForCell?(row, i) ?? Theme.ink
     cell.toolTip = nil
     return cell
   }

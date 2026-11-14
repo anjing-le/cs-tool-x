@@ -116,3 +116,7 @@ CLI 暂未覆盖的能力明确说明；不要虚构已连接、已传输或已�
 `profiles credentials status UUID` 返回保存状态、是否有密码/API Key 及凭据文件 revision，不返回秘密。`profiles credentials set UUID --if-revision REV --input -` 从 stdin 接收 `{password, apiKey}`，明确保存为本机明文；可保存空对象表示有意使用空凭据。`profiles credentials clear UUID --if-revision REV` 删除对应登录信息。同账号、地址、环境、传输策略下的不同数据库共享凭据；清除会影响这些数据库的下次连接。
 
 凭据文件独立于元数据，权限 0600，不留 `.backup`。set/clear 必须先 status 并携带 revision，冲突后重新读取。数据命令若未提供两个认证字段则使用已保存信息；显式提供任一字段会整份覆盖，不与旧凭据拼接。GUI 保存连接时可勾选本机保存，下次双击即可直连。存储是用户明确选择的明文，不声称加密。
+
+## 0.0.11 Git 浏览
+
+`git scan` 递归发现目录下的仓库；`git refs` 读取当前分支和引用；`git log` 提供拓扑历史、分页及仓库内的分支/文本/作者/日期筛选；`git show` 读取提交说明与变更文件。全部只读、不联网、不改分支或索引，GUI 与 CLI 共享实现。具体参数由当前安装版本 schema 获取，[预算及显示语义](GIT_BROWSER.md) 单独维护。

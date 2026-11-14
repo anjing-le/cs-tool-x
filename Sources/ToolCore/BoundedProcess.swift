@@ -18,11 +18,15 @@ public enum BoundedProcess {
       (input?.count ?? 0) <= 128 * 1024
     else { throw ConfigurationError.invalid }
     let session = ProcessSession(timeout: timeout, budget: maxOutputBytes)
-    return try await withCheckedThrowingContinuation { continuation in
-      session.start(
-        executable: executable, arguments: arguments, environment: environment, input: input,
-        continuation: continuation)
-    }
+    return try await withTaskCancellationHandler(
+      operation: {
+        try Task.checkCancellation()
+        return try await withCheckedThrowingContinuation { continuation in
+          session.start(
+            executable: executable, arguments: arguments, environment: environment, input: input,
+            continuation: continuation)
+        }
+      }, onCancel: { session.cancel() })
   }
 }
 private final class ProcessSession: @unchecked Sendable {
@@ -34,6 +38,13 @@ private final class ProcessSession: @unchecked Sendable {
   var stdout = Data(), stderr = Data()
   var outputEOF = false, errorEOF = false, exited = false, finished = false, timedOut = false,
     truncated = false
+  var cancelled = false
+  func cancel() {
+    lock.lock()
+    cancelled = true
+    lock.unlock()
+    terminate()
+  }
   var completion: CheckedContinuation<CommandResult, Error>?
   var timer: DispatchSourceTimer?
   var writer: Pipe?
@@ -84,6 +95,10 @@ private final class ProcessSession: @unchecked Sendable {
       continuation.resume(throwing: error)
       return
     }
+    lock.lock()
+    let stop = cancelled
+    lock.unlock()
+    if stop { terminate() }
     try? out.fileHandleForWriting.close()
     try? err.fileHandleForWriting.close()
     if let input, let writer {
@@ -143,6 +158,7 @@ private final class ProcessSession: @unchecked Sendable {
     finished = true
     self.completion = nil
     if force && !(outputEOF && errorEOF) { truncated = true }
+    let wasCancelled = cancelled
     let code =
       process.terminationReason == .uncaughtSignal
       ? 128 + process.terminationStatus : process.terminationStatus
@@ -159,6 +175,10 @@ private final class ProcessSession: @unchecked Sendable {
     try? out.fileHandleForReading.close()
     try? err.fileHandleForReading.close()
     process.terminationHandler = nil
-    completion.resume(returning: result)
+    if wasCancelled {
+      completion.resume(throwing: CancellationError())
+    } else {
+      completion.resume(returning: result)
+    }
   }
 }

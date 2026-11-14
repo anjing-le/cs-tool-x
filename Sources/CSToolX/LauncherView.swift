@@ -6,13 +6,14 @@ struct LauncherView: View {
   let enter: (ToolModule) -> Void
   var body: some View {
     GeometryReader { geometry in
-      let count = max(1, min(2, Int((geometry.size.width - 112 + 24) / 244)))
+      let count = max(1, min(3, Int((geometry.size.width - 112 + 24) / 244)))
       ScrollView {
         LazyVGrid(
           columns: Array(repeating: GridItem(.flexible(), spacing: 24), count: count), spacing: 24
         ) {
           ModuleCard(name: "Shell") { enter(.terminal) }
           ModuleCard(name: "数据") { enter(.data) }
+          ModuleCard(name: "Git") { enter(.git) }
         }.frame(maxWidth: 1120).padding(.horizontal, 56).padding(.vertical, 48)
           .frame(maxWidth: .infinity, minHeight: geometry.size.height)
       }.scrollIndicators(.hidden)

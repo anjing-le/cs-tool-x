@@ -9,7 +9,7 @@ struct Root: AsyncParsableCommand {
     version: "schema-1",
     subcommands: [
       Schema.self, Doctor.self, Servers.self, Profiles.self, DataCommands.self, SSHCommands.self,
-      SFTPCommands.self,
+      SFTPCommands.self, GitCommands.self,
     ])
 }
 @main struct Entry {
@@ -70,6 +70,8 @@ struct Doctor: AsyncParsableCommand {
           FileManager.default.isExecutableFile(atPath: options.helper.path)),
         "serverCount": .number(Decimal(shell.value.servers.count)),
         "profileCount": .number(Decimal(profiles.value.count)),
+        "gitExecutableAvailable": .bool(
+          FileManager.default.isExecutableFile(atPath: "/usr/bin/git")),
         "headless": .bool(true),
       ]))
   }
@@ -86,6 +88,10 @@ struct Schema: ParsableCommand {
      "optionsPlacement":"put options after the leaf command","configuration":"shared with GUI; atomic 0600 writes, 2s lock deadline, SHA256 revision and one .backup per file",
      "secrets":"SSH plaintext stays in local config; read only with servers show --show-secrets. Database credentials can be stored explicitly in local 0600 data-credentials.json (no Keychain/backups); explicit per-command stdin fields override the saved credential as a whole.",
      "commands":[
+      {"command":"git scan DIRECTORY","effect":"local filesystem read","notes":"recursive discovery including worktrees and bare repos; no symlink descent or .git metadata traversal; 20s / 250000 entries / 500 repositories, explicit limited flag"},
+      {"command":"git refs REPOSITORY","effect":"local Git read","notes":"current branch, HEAD and local/remote/tag refs; at most 5000 refs, 20000 total refs in GUI; 4 concurrent repositories per batch, 30s batch deadline"},
+      {"command":"git log REPOSITORY","effect":"local Git read","options":["--branch refs/heads/NAME","--search TEXT_OR_HASH","--author TEXT","--days 0|7|30|90|365","--offset 0..1999","--limit 1..200"],"notes":"topological history; text searches commit subjects/bodies, hash looks up exact commit, remote refs reflect last local fetch; 12s / 4MiB output"},
+      {"command":"git show REPOSITORY OID","effect":"local Git read","notes":"full hash; commit message and at most 1000 changed paths, no diff conversion or external tools; 12s per command, 256KiB message / 1MiB file-list budget"},
       {"command":"doctor","effect":"local read"},{"command":"schema","effect":"local read"},
       {"command":"servers list","effect":"local read","output":"servers metadata, groups, revision; no password"},
       {"command":"servers show ID","effect":"local read","options":["--show-secrets"]},
