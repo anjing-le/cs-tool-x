@@ -2,7 +2,7 @@
 
 一个极简的原生 macOS 开发工作台。把连接服务器、查看数据、文件传输以及后续常用开发操作，收进同一个客户端。
 
-长期目标是逐步承接 SSH 终端、SFTP 文件工具、数据库客户端、接口调试和开发小工具的常用流程。当前是 **0.0.16 基础版本**，功能按真实使用逐步打磨，不承诺已完整替代 Xshell、Xftp 或 DataGrip。
+长期目标是逐步承接 SSH 终端、SFTP 文件工具、数据库客户端、接口调试和开发小工具的常用流程。当前是 **0.0.17 基础版本**，功能按真实使用逐步打磨，不承诺已完整替代 Xshell、Xftp 或 DataGrip。
 
 [下载最新版](https://github.com/anjing-le/cs-tool-x/releases/latest) · [项目规划](docs/PLAN.md) · [架构](docs/ARCHITECTURE.md) · [更新与发布](docs/RELEASING.md)
 

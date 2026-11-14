@@ -12,6 +12,9 @@ import ToolCore
   private let status = Theme.label("", size: 11, muted: true)
   private let detailTitle = Theme.label("", size: 13, weight: .medium)
   private let detailMeta = Theme.label("", size: 10, muted: true)
+  private let detailEmail = Theme.label("", size: 11, muted: true)
+  private let authorMark = GitAuthorMark()
+  private let fileSummary = GitFileSummaryView()
   private let message = NSTextView()
   private let files = GitFilesList()
   private var more: NSButton!
@@ -174,7 +177,15 @@ import ToolCore
   }
   required init?(coder: NSCoder) { nil }
   private func makeDetailPanel() -> NSView {
-    detailTitle.font = .monospacedSystemFont(ofSize: 11, weight: .medium)
+    detailTitle.font = Theme.font(18, weight: .medium)
+    detailTitle.isSelectable = true
+    detailTitle.setAccessibilityLabel("提交作者")
+    detailEmail.isSelectable = true
+    detailEmail.lineBreakMode = .byTruncatingMiddle
+    detailEmail.setAccessibilityLabel("提交作者邮箱")
+    authorMark.widthAnchor.constraint(equalToConstant: 34).isActive = true
+    authorMark.heightAnchor.constraint(equalToConstant: 34).isActive = true
+    fileSummary.heightAnchor.constraint(equalToConstant: 30).isActive = true
     detailMeta.maximumNumberOfLines = 2
     detailMeta.lineBreakMode = .byTruncatingMiddle
     detailMeta.heightAnchor.constraint(equalToConstant: 36).isActive = true
@@ -202,13 +213,17 @@ import ToolCore
     messageHeight.isActive = true
     let close = PaperIconButton(
       symbol: "xmark", label: "收起详情", target: self, action: #selector(closeDetail))
-    let heading = Theme.stack([detailTitle, NSView(), close], vertical: false, spacing: 4)
+    let identity = Theme.stack([detailTitle, detailEmail], spacing: 1)
+    for field in [detailTitle, detailEmail] {
+      field.widthAnchor.constraint(equalTo: identity.widthAnchor).isActive = true
+    }
+    let heading = Theme.stack([authorMark, identity, close], vertical: false, spacing: 9)
     let stack = Theme.stack(
-      [heading, detailMeta, messageScroll, files.scroll], spacing: 8)
+      [heading, detailMeta, messageScroll, fileSummary, files.scroll], spacing: 6)
     heading.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
     files.table.headerView = nil
     stack.edgeInsets = NSEdgeInsets(top: 14, left: 14, bottom: 12, right: 14)
-    for view in [detailMeta, messageScroll, files.scroll] {
+    for view in [detailMeta, messageScroll, fileSummary, files.scroll] {
       view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -28).isActive = true
     }
     files.scroll.heightAnchor.constraint(greaterThanOrEqualToConstant: 100).isActive = true
@@ -235,7 +250,7 @@ import ToolCore
         with: NSSize(width: width, height: 1000), options: [.usesLineFragmentOrigin],
         attributes: [.font: message.font ?? Theme.font(14)]
       ).height
-      let desired = min(220, max(40, ceil(height) + 18))
+      let desired = min(150, max(40, ceil(height) + 18))
       if abs(messageHeight.constant - desired) > 1 { messageHeight.constant = desired }
     }
   }
@@ -582,6 +597,12 @@ import ToolCore
     selectedCommit = nil
     detailTitle.stringValue = ""
     detailMeta.stringValue = ""
+    detailEmail.stringValue = ""
+    authorMark.name = ""
+    fileSummary.summary = GitFileSummary([])
+    fileSummary.pending = false
+    fileSummary.error = nil
+    fileSummary.partial = false
     detailPanel?.isHidden = true
     detailDivider?.isHidden = true
     message.string = ""
@@ -595,34 +616,72 @@ import ToolCore
     selectedCommit = commit
     detailPanel.isHidden = false
     detailDivider.isHidden = false
-    detailTitle.stringValue = String(commit.oid.prefix(10))
+    detailTitle.stringValue = commit.author
+    detailTitle.toolTip = "这次提交记录中的作者名；不代表当前全局 Git 配置或登录账号"
+    detailEmail.stringValue = commit.email
+    detailEmail.toolTip = commit.email
+    authorMark.name = commit.author
     detailMeta.stringValue =
-      repository.location.name + " · " + commit.author + "\n"
-      + Date(timeIntervalSince1970: Double(commit.timestamp)).formatted()
+      Date(timeIntervalSince1970: Double(commit.timestamp)).formatted(date: .numeric, time: .shortened)
+      + " · " + String(commit.oid.prefix(8)) + "\n" + repository.location.name
     detailMeta.toolTip =
-      commit.author + " <" + commit.email + ">\n" + commit.oid + "\n父提交："
+      "作者：" + commit.author + " <" + commit.email + ">\n" + commit.oid + "\n父提交："
       + commit.parents.joined(separator: ", ")
-    message.string = "正在读取…"
+    message.string = commit.subject
+    fileSummary.summary = GitFileSummary([])
+    fileSummary.pending = true
+    fileSummary.error = nil
+    fileSummary.partial = false
     summaryNeedsLayout = true
     needsLayout = true
     files.update([])
     detailTask = Task { [weak self] in
       guard let self else { return }
       do {
-        let detail = try await GitBrowser.detail(repository: repository, oid: commit.oid)
+        let detail = try await GitBrowser.detail(repository: repository, oid: commit.oid, includeStatistics: false)
         let filePresentation = await Task.detached { GitFilesList.prepare(detail.files) }.value
         guard !Task.isCancelled, detailSerial == serial else { return }
         message.string = detail.message.trimmingCharacters(in: .whitespacesAndNewlines)
         files.apply(filePresentation)
+        fileSummary.summary = filePresentation.summary
+        fileSummary.partial = detail.filesLimited
+        fileSummary.pending = !detail.files.isEmpty
         summaryNeedsLayout = true
         needsLayout = true
-        if detail.limited { detailTitle.stringValue += " · 内容已截断" }
+        if detail.limited && !detail.filesLimited { message.string += "\n\n…说明过长，已截断" }
+        do {
+          let counted = try await GitBrowser.statistics(repository: repository, oid: commit.oid, changes: detail.files)
+          let countedPresentation = await Task.detached { GitFilesList.prepare(counted) }.value
+          guard !Task.isCancelled, detailSerial == serial else { return }
+          files.apply(countedPresentation)
+          fileSummary.summary = countedPresentation.summary
+          fileSummary.pending = false
+        } catch is CancellationError { throw CancellationError() } catch {
+          guard detailSerial == serial else { return }
+          fileSummary.pending = false
+          fileSummary.error = error.localizedDescription
+        }
         detailTask = nil
       } catch is CancellationError {} catch {
         guard detailSerial == serial else { return }
-        message.string = "读取失败：" + error.localizedDescription
+        fileSummary.pending = false
+        fileSummary.error = error.localizedDescription
         detailTask = nil
       }
     }
+  }
+}
+
+@MainActor private final class GitAuthorMark: NSView {
+  var name = "" { didSet { needsDisplay = true; setAccessibilityLabel(name) } }
+  override func draw(_ dirtyRect: NSRect) {
+    let box = bounds.insetBy(dx: 2, dy: 2)
+    let circle = NSBezierPath(ovalIn: box)
+    Theme.pale.withAlphaComponent(0.55).setFill(); circle.fill()
+    CrayonInk.stroke(circle, color: Theme.sage.withAlphaComponent(0.45), width: 1)
+    let p = NSMutableParagraphStyle(); p.alignment = .center
+    let initial = name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(1).uppercased()
+    (initial as NSString).draw(in: NSRect(x: 3, y: 7, width: bounds.width - 6, height: 22),
+      withAttributes: [.font: Theme.font(17, weight: .medium), .foregroundColor: Theme.sage, .paragraphStyle: p])
   }
 }

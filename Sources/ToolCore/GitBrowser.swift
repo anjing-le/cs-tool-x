@@ -82,12 +82,21 @@ public struct GitLogPage: Codable, Sendable {
 public struct GitFileChange: Codable, Sendable, Equatable {
   public let status: String
   public let path: String
+  public let additions: Int?
+  public let deletions: Int?
+  public let binary: Bool?
+  public init(status: String, path: String, additions: Int? = nil, deletions: Int? = nil, binary: Bool? = nil) {
+    self.status = status; self.path = path
+    self.additions = additions; self.deletions = deletions; self.binary = binary
+  }
 }
 public struct GitCommitDetail: Codable, Sendable {
   public let oid: String
   public let message: String
   public let files: [GitFileChange]
   public let limited: Bool
+  public let filesLimited: Bool
+  public let statisticsError: String?
 }
 
 /// Local read-only plumbing. No shell interpolation, network, status/index refresh or Git write commands.
@@ -407,7 +416,7 @@ public enum GitBrowser {
       commits: Array(commits.prefix(limit)), hasMore: commits.count > limit,
       nextOffset: offset + min(commits.count, limit))
   }
-  public static func detail(repository: GitRepository, oid: String) async throws -> GitCommitDetail
+  public static func detail(repository: GitRepository, oid: String, includeStatistics: Bool = true) async throws -> GitCommitDetail
   {
     guard validOID(oid) else { throw ConfigurationError.invalid }
     let message = try await run(
@@ -426,9 +435,48 @@ public enum GitBrowser {
       changes.append(GitFileChange(status: fields[index], path: fields[index + 1]))
       if changes.count >= 1001 { break }
     }
+    var shown = Array(changes.prefix(1000))
+    var statisticsError: String?
+    if includeStatistics {
+      do { shown = try await statistics(repository: repository, oid: oid, changes: shown) }
+      catch is CancellationError { throw CancellationError() }
+      catch { statisticsError = error.localizedDescription }
+    }
     return GitCommitDetail(
-      oid: oid, message: String(message.stdout.prefix(64_000)), files: Array(changes.prefix(1000)),
-      limited: changes.count > 1000 || message.stdout.count > 64_000)
+      oid: oid, message: String(message.stdout.prefix(64_000)), files: shown,
+      limited: changes.count > 1000 || message.stdout.count > 64_000,
+      filesLimited: changes.count > 1000, statisticsError: statisticsError)
+  }
+  /// First-parent changed-line counts; no patch is returned and binary files have no numeric count.
+  public static func statistics(repository: GitRepository, oid: String, changes: [GitFileChange]) async throws -> [GitFileChange] {
+    guard validOID(oid), changes.count <= 1000 else { throw ConfigurationError.invalid }
+    if changes.isEmpty { return [] }
+    let result = try await run(repository.id, [
+      "show", "--format=", "--root", "--numstat", "--no-renames", "--no-ext-diff",
+      "--no-textconv", "-z", "--diff-merges=first-parent", oid, "--",
+    ], bytes: 1024 * 1024, deadline: ProcessInfo.processInfo.systemUptime + 8)
+    let wanted = Set(changes.map(\.path))
+    var counts: [String: (Int?, Int?, Bool)] = [:]
+    for record in result.stdout.split(separator: "\0", omittingEmptySubsequences: true) {
+      let fields = record.split(separator: "\t", maxSplits: 2, omittingEmptySubsequences: false)
+      guard fields.count == 3 else { throw ToolError.message("Git 行数统计格式无效。") }
+      let path = String(fields[2])
+      guard wanted.contains(path) else { continue }
+      if fields[0] == "-", fields[1] == "-" {
+        counts[path] = (nil, nil, true)
+      } else {
+        guard let added = Int(fields[0]), let removed = Int(fields[1]), added >= 0, removed >= 0 else {
+          throw ToolError.message("Git 行数统计超出支持范围。")
+        }
+        counts[path] = (added, removed, false)
+      }
+    }
+    return try changes.map { change in
+      guard let (added, removed, binary) = counts[change.path] else {
+        throw ToolError.message("部分文件缺少行数统计，请刷新后重试。")
+      }
+      return GitFileChange(status: change.status, path: change.path, additions: added, deletions: removed, binary: binary)
+    }
   }
   public static func validOID(_ oid: String) -> Bool {
     [40, 64].contains(oid.count) && oid.allSatisfy { $0.isASCII && $0.isHexDigit }

@@ -95,6 +95,15 @@ import ToolCore
     window.setFrame(NSRect(origin: window.frame.origin, size: expandedWindowSize), display: false)
     workspace.layoutSubtreeIfNeeded()
 
+    let identityFields = allViews(workspace).compactMap { $0 as? NSTextField }
+    precondition(identityFields.contains { $0.stringValue == subjectCell.author && $0.isSelectable }, "Author identity is prominent and copyable")
+    precondition(identityFields.contains { $0.stringValue == "fixture@example.invalid" || $0.stringValue.contains("@") }, "Author email is shown directly")
+    let summary = allViews(workspace).compactMap { $0 as? GitFileSummaryView }.first!
+    precondition(summary.summary.files == 1 && summary.summary.known == 1 && !summary.pending,
+      "File statistics finish after the initial detail list")
+    precondition(GitFileGlyph.identify(".env.example", binary: nil).type == "环境配置"
+      && GitFileGlyph.identify("page.tsx", binary: false).mark == "TS"
+      && GitFileGlyph.identify("README.md", binary: false).type == "文档", "File type glyphs use names, including hidden config files")
     let handles = allViews(workspace).compactMap { $0 as? PaperResizeHandle }
     precondition(
       handles.count == 2 && handles.allSatisfy { $0.writingCursorRole == .columnResize },
@@ -112,9 +121,12 @@ import ToolCore
     let examples = try JSONDecoder().decode(
       [GitFileChange].self,
       from: JSONSerialization.data(withJSONObject: [
-        ["status": "M", "path": "README.md"], ["status": "A", "path": longPath],
+        ["status": "M", "path": "README.md", "additions": 12, "deletions": 3, "binary": false], ["status": "A", "path": longPath, "additions": 84, "deletions": 0, "binary": false],
       ]))
     pathList.update(examples)
+    summary.summary = GitFileSummary(examples)
+    precondition(summary.summary.added == 96 && summary.summary.removed == 3 && summary.summary.known == 2,
+      "Summary reflects displayed text-file counts")
     workspace.layoutSubtreeIfNeeded()
     precondition(
       files.rect(ofRow: 1).height > files.rect(ofRow: 0).height,
