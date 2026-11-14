@@ -1,4 +1,5 @@
 import AppKit
+import CoreText
 
 enum Theme {
   static let paper = NSColor(srgbRed: 0.99, green: 0.987, blue: 0.975, alpha: 1)
@@ -13,6 +14,23 @@ enum Theme {
     c.countLimit = 64
     return c
   }()
+  private static let localFaces: Set<String> = {
+    let wanted: Set<String> = [
+      "HanziPenSC-W3", "HanziPenSC-W5", "STKaitiSC-Regular", "STSongti-SC-Regular",
+    ]
+    let descriptors =
+      CTFontCollectionCreateMatchingFontDescriptors(CTFontCollectionCreateFromAvailableFonts(nil))
+      as? [CTFontDescriptor] ?? []
+    return Set(
+      descriptors.compactMap { descriptor in
+        guard let name = CTFontDescriptorCopyAttribute(descriptor, kCTFontNameAttribute) as? String,
+          wanted.contains(name),
+          let url = CTFontDescriptorCopyAttribute(descriptor, kCTFontURLAttribute) as? URL,
+          url.isFileURL, FileManager.default.fileExists(atPath: url.path)
+        else { return nil }
+        return name
+      })
+  }()
   static func font(_ size: CGFloat, weight: NSFont.Weight = .regular) -> NSFont {
     let key = "\(size):\(weight.rawValue)" as NSString
     if let cached = fonts.object(forKey: key) { return cached }
@@ -20,9 +38,13 @@ enum Theme {
       weight.rawValue >= NSFont.Weight.medium.rawValue
       ? ["HanziPenSC-W5", "HanziPenSC-W3", "STKaitiSC-Regular"]
       : ["HanziPenSC-W3", "STKaitiSC-Regular", "STSongti-SC-Regular"]
-    let value =
-      names.compactMap { NSFont(name: $0, size: size) }.first
-      ?? NSFont.systemFont(ofSize: size, weight: weight)
+    var value = NSFont.systemFont(ofSize: size, weight: weight)
+    for name in names where localFaces.contains(name) {
+      if let found = NSFont(name: name, size: size) {
+        value = found
+        break
+      }
+    }
     fonts.setObject(value, forKey: key)
     return value
   }
