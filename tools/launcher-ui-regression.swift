@@ -36,6 +36,6 @@ import ToolCore
         }
       }
     }
-    print("PASS: full-bleed launcher at minimum, standard and wide sizes; three bounded cached illustrations; no white gutters. Offscreen rendering, not installed-window automation.")
+    print("PASS: edge-to-edge colored entrance regions with contained artwork at minimum, standard and wide sizes; three bounded cached illustrations; no white gutters. Offscreen rendering, not installed-window automation.")
   }
 }

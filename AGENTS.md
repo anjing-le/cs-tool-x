@@ -1,7 +1,7 @@
 # cs-tool-x
 
 - 原生 macOS 14+ 开发工作台。Swift/AppKit/SwiftUI 宿主、Rust 数据进程、SwiftTerm/OpenSSH、Sparkle；不恢复旧 Tauri 原型，不默认加入账号、云同步或插件市场。
-- 首页为 imagegen 制作的全幅插画三分区，风格参照 CreatorX 的黄发黑卫衣人物与蜡笔笔触；只保留 Shell、数据、Git。三块拼满窗口，无白边、间隙、卡片底板、边框或常驻说明文字；悬停/键盘焦点显示入口名，整块可点击，保留可访问标签、自定义光标和减少动态效果支持。资源位于 Resources/Entrances，提示词见 assets/launcher-prompts.md；后台有界解码并复用缓存，不新增轮询或网络取图。SSH 与文件传输必须位于同一个 Shell 工作区，右侧文件栏，不拆成首页两个模块。进入后各模块独立布局，Cmd+1 返回首页。Shell 复用 anjing-shell 的服务器分组、搜索、同窗编辑、标签和分屏，不迁入假服务器/日志/传输成功状态或私人指针素材。保持兄弟项目不变。
+- 首页为 imagegen 插画三分区，风格参照 CreatorX 的黄发黑卫衣人物与蜡笔笔触；只保留 Shell、数据、Git。区域拼满窗口，无白边、间隙、边框或常驻说明文字；插画等比例完整放入，不使用 fill 或悬停放大裁切，剩余区域使用对应场景色。悬停/键盘焦点显示入口名，整块可点击，保留可访问标签、自定义光标和减少动态效果支持。资源位于 Resources/Entrances，提示词见 assets/launcher-prompts.md；后台有界解码并复用缓存，不新增轮询或网络取图。SSH 与文件传输必须位于同一个 Shell 工作区，右侧文件栏，不拆成首页两个模块。进入后各模块独立布局，Cmd+1 返回首页。Shell 复用 anjing-shell 的服务器分组、搜索、同窗编辑、标签和分屏，不迁入假服务器/日志/传输成功状态或私人指针素材。保持兄弟项目不变。
 - 不使用系统钥匙串：数据库密码/API Key 按用户选择保存在本机 data-credentials.json（0600，无秘密备份）或仅在会话内存；SSH 密码按用户明确选择保存在本机 shell.json 中并在编辑界面明文显示，真实凭据禁止进入 Git/app/OTA，SSH 密钥由用户自己的文件/Agent 管理，明确传 UseKeychain=no / AddKeysToAgent=no，不自动导入保存。连接元数据可保存但不含秘密字段。
 - OTA 不使用钥匙串。私钥只允许放在仓库外、当前用户所有的 0600 普通文件，签名工具用 --ed-key-file 读取；绝不输出内容、进入仓库或打进 app。固定 Ed25519 公钥与 feed，从首个发布版本起保持稳定。
 - 应用使用 ad-hoc 完整性签名；OTA 来源认证使用签名 feed 和先验签的 Ed25519 更新包。不声称有证书身份或 Apple Developer ID / 公证。缺失更新私钥时停止发布，不降级为未验签更新。

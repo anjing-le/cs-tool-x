@@ -89,9 +89,8 @@ import ToolCore
           color
           if let image {
             Image(decorative: image, scale: 1)
-              .resizable().scaledToFill()
+              .resizable().scaledToFit()
               .frame(width: geometry.size.width, height: geometry.size.height)
-              .scaleEffect(reduceMotion ? 1 : (hovered || focused ? 1.015 : 1))
           }
           Color.black.opacity(hovered || focused ? 0.045 : 0)
           if hovered || focused || image == nil {
