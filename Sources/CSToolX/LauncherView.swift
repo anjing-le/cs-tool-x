@@ -1,27 +1,80 @@
+import AppKit
+import ImageIO
 import SwiftUI
 import ToolCore
 
-/// FinanceX's quiet equal-width cards, with a separate destination for each tool.
-struct LauncherView: View {
-  let enter: (ToolModule) -> Void
-  var body: some View {
-    GeometryReader { geometry in
-      let count = max(1, min(3, Int((geometry.size.width - 112 + 24) / 244)))
-      ScrollView {
-        LazyVGrid(
-          columns: Array(repeating: GridItem(.flexible(), spacing: 24), count: count), spacing: 24
-        ) {
-          ModuleCard(name: "Shell") { enter(.terminal) }
-          ModuleCard(name: "数据") { enter(.data) }
-          ModuleCard(name: "Git") { enter(.git) }
-        }.frame(maxWidth: 1120).padding(.horizontal, 56).padding(.vertical, 48)
-          .frame(maxWidth: .infinity, minHeight: geometry.size.height)
-      }.scrollIndicators(.hidden)
-    }.background(Ink.background).preferredColorScheme(.light)
+/// A finite, shared set of decoded entrance images. Resource I/O and decoding stay off the UI thread.
+@MainActor final class LauncherArtwork: ObservableObject {
+  @Published private(set) var images: [String: CGImage] = [:]
+  private let directory: URL?
+  private var loading: Task<[String: CGImage], Never>?
+  init(directory: URL? = Bundle.main.resourceURL?.appendingPathComponent("Entrances")) {
+    self.directory = directory
+  }
+  func load() async {
+    guard images.isEmpty else { return }
+    if loading == nil {
+      let directory = directory
+      loading = Task.detached(priority: .userInitiated) {
+        var result: [String: CGImage] = [:]
+        for key in ["shell", "data", "git"] {
+          guard let url = directory?.appendingPathComponent(key + ".png"),
+            let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 8 * 1024 * 1024,
+            let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+            let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+            let width = properties[kCGImagePropertyPixelWidth] as? Int,
+            let height = properties[kCGImagePropertyPixelHeight] as? Int,
+            width > 0, height > 0, width <= 4096, height <= 4096,
+            let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+              kCGImageSourceCreateThumbnailFromImageAlways: true,
+              kCGImageSourceCreateThumbnailWithTransform: true,
+              kCGImageSourceThumbnailMaxPixelSize: 1536,
+              kCGImageSourceShouldCacheImmediately: true,
+            ] as CFDictionary)
+          else { continue }
+          result[key] = image
+        }
+        return result
+      }
+    }
+    // Immutable bundled assets can finish loading after navigation; the home view keeps this cache.
+    images = await loading!.value
   }
 }
-private struct ModuleCard: View {
-  let name: String
+
+@MainActor struct LauncherView: View {
+  let enter: (ToolModule) -> Void
+  @StateObject private var artwork: LauncherArtwork
+  init(artwork: LauncherArtwork? = nil, enter: @escaping (ToolModule) -> Void) {
+    _artwork = StateObject(wrappedValue: artwork ?? LauncherArtwork())
+    self.enter = enter
+  }
+  var body: some View {
+    GeometryReader { geometry in
+      HStack(spacing: 0) {
+        entrance("shell", name: "Shell", label: "Shell：终端与文件传输", color: Color(red: 0.96, green: 0.82, blue: 0.55), module: .terminal, size: geometry.size)
+        entrance("data", name: "数据", label: "数据：MySQL、PostgreSQL、Redis 与 Elasticsearch", color: Color(red: 0.75, green: 0.83, blue: 0.86), module: .data, size: geometry.size)
+        entrance("git", name: "Git", label: "Git：仓库、分支与提交历史", color: Color(red: 0.75, green: 0.80, blue: 0.61), module: .git, size: geometry.size)
+      }
+    }
+    .background(Color(nsColor: Theme.paper))
+    .preferredColorScheme(.light)
+    .ignoresSafeArea()
+    .task { await artwork.load() }
+    .accessibilityElement(children: .contain)
+    .accessibilityLabel("工具入口")
+  }
+  private func entrance(_ key: String, name: String, label: String, color: Color, module: ToolModule, size: CGSize) -> some View {
+    IllustratedEntrance(name: name, label: label, image: artwork.images[key], color: color) {
+      enter(module)
+    }.frame(width: size.width / 3, height: size.height).clipped()
+  }
+}
+
+@MainActor private struct IllustratedEntrance: View {
+  let name: String, label: String
+  let image: CGImage?
+  let color: Color
   let action: () -> Void
   @State private var hovered = false
   @FocusState private var focused: Bool
@@ -31,21 +84,35 @@ private struct ModuleCard: View {
       hovered = false
       action()
     } label: {
-      Text(name).font(Font(Theme.font(22, weight: .medium))).foregroundStyle(Ink.sage)
-        .frame(maxWidth: .infinity).frame(height: 180)
-        .background(
-          .white.opacity(hovered || focused ? 0.72 : 0.48), in: RoundedRectangle(cornerRadius: 24)
-        )
-        .overlay(
-          RoundedRectangle(cornerRadius: 24).strokeBorder(
-            Ink.main.opacity(focused ? 0.26 : 0.10), lineWidth: 1)
-        )
-        .contentShape(RoundedRectangle(cornerRadius: 24))
-        .shadow(color: .black.opacity(hovered ? 0.12 : 0), radius: 24, x: 0, y: 10)
-        .offset(y: reduceMotion ? 0 : (hovered ? -3 : 0))
-    }.buttonStyle(.plain).writingCursor(.clickable).focused($focused).onHover { hovered = $0 }
-      .onDisappear { hovered = false }
-      .animation(reduceMotion ? nil : .timingCurve(0.4, 0, 0.2, 1, duration: 0.28), value: hovered)
-      .accessibilityLabel(name)
+      GeometryReader { geometry in
+        ZStack(alignment: .bottomLeading) {
+          color
+          if let image {
+            Image(decorative: image, scale: 1)
+              .resizable().scaledToFill()
+              .frame(width: geometry.size.width, height: geometry.size.height)
+              .scaleEffect(reduceMotion ? 1 : (hovered || focused ? 1.015 : 1))
+          }
+          Color.black.opacity(hovered || focused ? 0.045 : 0)
+          if hovered || focused || image == nil {
+            Text(name)
+              .font(Font(Theme.font(20, weight: .medium)))
+              .foregroundStyle(Color(nsColor: Theme.ink))
+              .padding(.leading, 26).padding(.bottom, 30)
+              .accessibilityHidden(true)
+          }
+          if focused {
+            Rectangle().fill(Color(nsColor: Theme.sage)).frame(height: 3).accessibilityHidden(true)
+          }
+        }.frame(width: geometry.size.width, height: geometry.size.height)
+          .clipped().contentShape(Rectangle())
+      }
+    }
+    .buttonStyle(.plain).writingCursor(.clickable).focused($focused)
+    .onHover { hovered = $0 }
+    .onDisappear { hovered = false }
+    .animation(reduceMotion ? nil : .easeOut(duration: 0.18), value: hovered)
+    .accessibilityLabel(label)
+    .accessibilityHint("打开工作区")
   }
 }
