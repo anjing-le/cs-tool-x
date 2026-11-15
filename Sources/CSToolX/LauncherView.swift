@@ -51,11 +51,24 @@ import ToolCore
   }
   var body: some View {
     GeometryReader { geometry in
-      HStack(spacing: 0) {
-        entrance("shell", name: "Shell", label: "Shell：终端与文件传输", color: Color(red: 0.96, green: 0.82, blue: 0.55), module: .terminal, size: geometry.size)
-        entrance("data", name: "数据", label: "数据：MySQL、PostgreSQL、Redis 与 Elasticsearch", color: Color(red: 0.75, green: 0.83, blue: 0.86), module: .data, size: geometry.size)
-        entrance("git", name: "Git", label: "Git：仓库、分支与提交历史", color: Color(red: 0.75, green: 0.80, blue: 0.61), module: .git, size: geometry.size)
+      // Keep the upper row no taller than any fitted illustration, so no horizontal bands appear.
+      let naturalHeight = artwork.images.values.map {
+        geometry.size.width / 3 * CGFloat($0.height) / CGFloat($0.width)
+      }.min() ?? geometry.size.width / 2
+      let upperHeight = min(geometry.size.height * 0.8, naturalHeight)
+      let upperSize = CGSize(width: geometry.size.width, height: upperHeight)
+      VStack(spacing: 0) {
+        HStack(spacing: 0) {
+          entrance("shell", name: "Shell", label: "Shell：终端与文件传输", color: Color(red: 0.96, green: 0.82, blue: 0.55), module: .terminal, size: upperSize)
+          entrance("data", name: "数据", label: "数据：MySQL、PostgreSQL、Redis 与 Elasticsearch", color: Color(red: 0.75, green: 0.83, blue: 0.86), module: .data, size: upperSize)
+          entrance("git", name: "Git", label: "Git：仓库、分支与提交历史", color: Color(red: 0.75, green: 0.80, blue: 0.61), module: .git, size: upperSize)
+        }
+        // The fourth region is deliberately empty until a real module is chosen.
+        Color(red: 0.90, green: 0.92, blue: 0.86)
+          .frame(width: geometry.size.width, height: max(0, geometry.size.height - upperHeight))
+          .accessibilityHidden(true)
       }
+
     }
     .background(Color(nsColor: Theme.paper))
     .preferredColorScheme(.light)

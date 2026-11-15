@@ -27,7 +27,16 @@ import ToolCore
         let path = URL(fileURLWithPath: CommandLine.arguments[2] + "-\(width).png")
         try rep.representation(using: .png, properties: [:])!.write(to: path)
       }
-      // The top/bottom, both joins and outer edges must all contain scene pixels, not a card gutter.
+      // The entire lower row is one empty reserved region, with no continuation of the three panels.
+      let lowerColors = [0.1, 0.5, 0.9].map { fx in
+        rep.colorAt(x: Int(Double(rep.pixelsWide - 1) * fx), y: Int(Double(rep.pixelsHigh - 1) * 0.9))!.usingColorSpace(.sRGB)!
+      }
+      precondition(lowerColors.allSatisfy {
+        abs($0.redComponent - lowerColors[0].redComponent) < 0.005
+          && abs($0.greenComponent - lowerColors[0].greenComponent) < 0.005
+          && abs($0.blueComponent - lowerColors[0].blueComponent) < 0.005
+      }, "Lower row must be a single reserved region")
+      // No white or transparent gutters around either row.
       for fx in [0.002, 0.332, 0.334, 0.665, 0.668, 0.998] {
         for fy in [0.002, 0.5, 0.998] {
           let color = rep.colorAt(x: Int(Double(rep.pixelsWide - 1) * fx), y: Int(Double(rep.pixelsHigh - 1) * fy))!.usingColorSpace(.sRGB)!
@@ -36,6 +45,6 @@ import ToolCore
         }
       }
     }
-    print("PASS: edge-to-edge colored entrance regions with contained artwork at minimum, standard and wide sizes; three bounded cached illustrations; no white gutters. Offscreen rendering, not installed-window automation.")
+    print("PASS: three contained upper entrances and one empty full-width lower region at minimum, standard and wide sizes; three bounded cached illustrations; no white gutters. Offscreen rendering, not installed-window automation.")
   }
 }
