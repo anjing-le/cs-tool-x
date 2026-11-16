@@ -33,7 +33,7 @@ final class DataTreeNode {
   }
 }
 
-/// Virtualized rows with custom disclosure controls; expansion has no polling.
+/// Virtualized arrowless rows; selection and explicit activation are separate.
 @MainActor
 final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
   struct Visible {
@@ -45,6 +45,8 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
   private(set) var roots: [DataTreeNode] = []
   private var visible: [Visible] = []
   private var expanded: Set<String> = []
+  private var userCollapsed: Set<String> = []
+  private var selectedID: String?
   private var source: [String: [ConnectionProfile]] = [:]
   private var rebuilding = false
   private var connectionFilter: String?
@@ -62,8 +64,9 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     table.intercellSpacing = NSSize(width: 0, height: 1)
     table.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
     table.target = self
-    table.doubleAction = #selector(activate)
+    table.doubleAction = #selector(activateSelection)
     table.setAccessibilityLabel("数据连接树")
+    table.setAccessibilityHelp("单击选择，双击或回车展开、收起目录或打开对象；左右方向键展开、收起。")
     let column = NSTableColumn(identifier: .init("tree"))
     column.width = 310
     column.minWidth = 120
@@ -114,6 +117,13 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     }
     source = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0.profiles) })
     if nodeCount > 5000 { roots = groups.map { freshRoot($0) } }
+    var validIDs = Set<String>()
+    func collect(_ nodes: [DataTreeNode]) {
+      for node in nodes { validIDs.insert(node.id); collect(node.children) }
+    }
+    collect(roots)
+    expanded.formIntersection(validIDs)
+    userCollapsed.formIntersection(validIDs)
     rebuild()
   }
   private func freshRoot(_ group: ConnectionGroup) -> DataTreeNode {
@@ -166,7 +176,9 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     }
     return contains(roots)
   }
-  func expand(_ node: DataTreeNode) {
+  func expand(_ node: DataTreeNode, respectingUserCollapse: Bool = false) {
+    guard !respectingUserCollapse || !userCollapsed.contains(node.id) else { return }
+    userCollapsed.remove(node.id)
     expanded.insert(node.id)
     rebuild()
   }
@@ -194,22 +206,28 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     rebuilding = true
     table.reloadData()
     if let selected, let index = visible.firstIndex(where: { $0.node.id == selected }) {
+      selectedID = selected
       table.selectRowIndexes(IndexSet(integer: index), byExtendingSelection: false)
+    } else {
+      selectedID = nil
+      table.deselectAll(nil)
     }
     scroll.contentView.scroll(to: origin)
     scroll.reflectScrolledClipView(scroll.contentView)
     rebuilding = false
   }
-  private func toggle(_ node: DataTreeNode) {
+  private func toggle(_ node: DataTreeNode, opens: Bool = false) {
     guard node.expandable else {
       onActivate?(node)
       return
     }
     if expanded.remove(node.id) == nil {
+      userCollapsed.remove(node.id)
       expanded.insert(node.id)
       rebuild()
-      onExpand?(node)
+      if opens { onActivate?(node) } else { onExpand?(node) }
     } else {
+      userCollapsed.insert(node.id)
       rebuild()
     }
   }
@@ -227,7 +245,7 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
         table.selectRowIndexes(IndexSet(integer: parent), byExtendingSelection: false)
       }
     default:
-      onActivate?(node)
+      activateSelection()
     }
   }
   func numberOfRows(in tableView: NSTableView) -> Int { visible.count }
@@ -242,24 +260,24 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     let cell =
       (table.makeView(withIdentifier: id, owner: self) as? NavigatorCell) ?? NavigatorCell()
     cell.identifier = id
-    cell.configure(node, depth: item.depth, expanded: expanded.contains(node.id)) {
-      [weak self, weak node] in
-      guard let node else { return }
-      self?.toggle(node)
-    }
+    cell.configure(node, depth: item.depth, selected: table.selectedRow == row)
     return cell
   }
   func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
     PaperTableRow()
   }
   func tableViewSelectionDidChange(_ notification: Notification) {
-    guard !rebuilding, visible.indices.contains(table.selectedRow) else { return }
-    onSelect?(visible[table.selectedRow].node)
+    guard !rebuilding else { return }
+    let node = visible.indices.contains(table.selectedRow) ? visible[table.selectedRow].node : nil
+    let oldID = selectedID
+    selectedID = node?.id
+    let changed = IndexSet(visible.indices.filter { visible[$0].node.id == oldID || visible[$0].node.id == selectedID })
+    table.reloadData(forRowIndexes: changed, columnIndexes: IndexSet(integer: 0))
+    if let node { onSelect?(node) }
   }
-  @objc private func activate() {
-    guard visible.indices.contains(table.clickedRow) else { return }
-    let node = visible[table.clickedRow].node
-    onActivate?(node)
+  @objc func activateSelection() {
+    guard visible.indices.contains(table.selectedRow) else { return }
+    toggle(visible[table.selectedRow].node, opens: true)
   }
 }
 @MainActor
@@ -275,38 +293,39 @@ private final class NavigatorTable: NSTableView {
 }
 @MainActor
 private final class NavigatorCell: NSTableCellView {
-  private let disclosure = PaperIconButton(
-    symbol: "chevron.right", label: "展开", target: nil, action: #selector(toggle))
-  private let heading = Theme.label("", size: 11)
+  private let dot = Theme.label("●", size: 8)
+  private let heading = Theme.label("", size: 12)
   private let detail = Theme.label("", size: 9, muted: true)
+  private let selection = Theme.label("✓", size: 11)
   private var inset: NSLayoutConstraint!
   private var center: NSLayoutConstraint!
-  private var action: (() -> Void)?
   override init(frame: NSRect) {
     super.init(frame: frame)
-    disclosure.target = self
-    disclosure.action = #selector(toggle)
-    for view in [disclosure, heading, detail] {
+    dot.textColor = Theme.sage
+    selection.textColor = Theme.sage
+    heading.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    for view in [dot, heading, detail, selection] {
       view.translatesAutoresizingMaskIntoConstraints = false
       addSubview(view)
     }
-    inset = disclosure.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
+    inset = dot.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 8)
     center = heading.centerYAnchor.constraint(equalTo: centerYAnchor)
     NSLayoutConstraint.activate([
-      inset, disclosure.widthAnchor.constraint(equalToConstant: 22),
-      disclosure.heightAnchor.constraint(equalToConstant: 22),
-      disclosure.centerYAnchor.constraint(equalTo: centerYAnchor),
-      heading.leadingAnchor.constraint(equalTo: disclosure.trailingAnchor, constant: 5),
-      heading.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -8), center,
+      inset, dot.widthAnchor.constraint(equalToConstant: 12),
+      dot.centerYAnchor.constraint(equalTo: heading.centerYAnchor),
+      heading.leadingAnchor.constraint(equalTo: dot.trailingAnchor, constant: 5),
+      heading.trailingAnchor.constraint(equalTo: selection.leadingAnchor, constant: -6), center,
       detail.topAnchor.constraint(equalTo: heading.bottomAnchor, constant: 3),
       detail.leadingAnchor.constraint(equalTo: heading.leadingAnchor),
       detail.trailingAnchor.constraint(equalTo: heading.trailingAnchor),
+      selection.widthAnchor.constraint(equalToConstant: 12),
+      selection.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -9),
+      selection.centerYAnchor.constraint(equalTo: centerYAnchor),
     ])
     textField = heading
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-  func configure(_ node: DataTreeNode, depth: Int, expanded: Bool, action: @escaping () -> Void) {
-    self.action = action
+  func configure(_ node: DataTreeNode, depth: Int, selected: Bool) {
     inset.constant = CGFloat(8 + depth * 16)
     heading.stringValue =
       String(node.title.prefix(200)) + (node.title.count > 200 ? "…" : "")
@@ -315,13 +334,11 @@ private final class NavigatorCell: NSTableCellView {
     detail.stringValue = node.kind == .connection ? node.detail : ""
     detail.isHidden = node.kind != .connection
     center.constant = node.kind == .connection ? -7 : 0
-    disclosure.isHidden = !node.expandable
-    disclosure.symbol = expanded ? "chevron.down" : "chevron.right"
-    disclosure.setAccessibilityLabel((expanded ? "收起 " : "展开 ") + node.title)
+    selection.isHidden = !selected
+    selection.setAccessibilityLabel("已选中")
     heading.setAccessibilityLabel(node.title)
     toolTip = String(
       (node.openError ?? (node.detail.isEmpty ? node.title : node.title + "\n" + node.detail))
         .prefix(2000))
   }
-  @objc private func toggle() { action?() }
 }

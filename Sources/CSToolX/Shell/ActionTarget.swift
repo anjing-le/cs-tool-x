@@ -7,6 +7,7 @@ struct ActionTarget: NSViewRepresentable {
   var enabled = true
   var doubleClick = false
   var onSelect: (() -> Void)? = nil
+  var onDisclosure: ((Bool) -> Void)? = nil
   let action: () -> Void
   func makeCoordinator() -> Coordinator { Coordinator() }
   func makeNSView(context: Context) -> HitButton {
@@ -24,6 +25,7 @@ struct ActionTarget: NSViewRepresentable {
     button.isEnabled = enabled
     button.requiredClicks = doubleClick ? 2 : 1
     button.selectionHandler = onSelect
+    button.disclosureHandler = onDisclosure
     button.setAccessibilityLabel(label)
     button.toolTip = label
   }
@@ -36,6 +38,7 @@ final class HitButton: NSButton {
   override var acceptsFirstResponder: Bool { isEnabled }
   var requiredClicks = 1
   var selectionHandler: (() -> Void)?
+  var disclosureHandler: ((Bool) -> Void)?
   override func mouseDown(with event: NSEvent) {
     guard isEnabled else { return }
     guard requiredClicks == 2 else {
@@ -47,7 +50,11 @@ final class HitButton: NSButton {
     if event.clickCount == 2 { sendAction(action, to: target) }
   }
   override func keyDown(with event: NSEvent) {
-    if isEnabled && [36, 76, 49].contains(event.keyCode) {
+    if isEnabled, let disclosureHandler, [123, 124].contains(event.keyCode) {
+      selectionHandler?()
+      disclosureHandler(event.keyCode == 124)
+    } else if isEnabled && [36, 76, 49].contains(event.keyCode) {
+      selectionHandler?()
       sendAction(action, to: target)
     } else {
       super.keyDown(with: event)

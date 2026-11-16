@@ -329,7 +329,7 @@ final class WorkbenchController: NSWindowController {
         presents: true)
       connectionSheet = nil
       if let browse, let current = navigator.node(browse.id) {
-        navigator.expand(current)
+        navigator.expand(current, respectingUserCollapse: true)
         loadTree(current, workspace: workspace)
       }
     }
@@ -580,7 +580,7 @@ extension WorkbenchController {
       display(workspace, in: dataContent)
     }
     if !query {
-      if node.expandable { navigator.expand(node) }
+      if node.expandable { navigator.expand(node, respectingUserCollapse: true) }
       loadTree(node, workspace: workspace, presents: presents)
     }
   }

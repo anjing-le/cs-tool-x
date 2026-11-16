@@ -30,20 +30,27 @@ import ToolCore
           windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "",
           isARepeat: false, keyCode: code)!)
     }
-    table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-    key(124)
-    precondition(table.numberOfRows == 4, "Right arrow expands selected connection")
     var activations = 0
     nav.onActivate = { node in
       precondition(node === root)
       activations += 1
     }
+    table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+    precondition(table.numberOfRows == 2 && activations == 0, "Selection neither expands nor connects")
     key(36)
-    precondition(
-      table.numberOfRows == 4 && activations == 1,
-      "Enter opens selected connection without collapsing it")
+    precondition(table.numberOfRows == 4 && activations == 1, "Enter expands and opens connection once")
+    key(36)
+    precondition(table.numberOfRows == 2 && activations == 1, "Enter collapses without another connection")
+    nav.expand(root, respectingUserCollapse: true)
+    precondition(table.numberOfRows == 2, "Late connection callback cannot reopen collapsed directory")
+    key(124)
+    precondition(table.numberOfRows == 4 && activations == 1, "Right arrow only expands")
     key(123)
     precondition(table.numberOfRows == 2, "Left arrow collapses without opening")
+    nav.activateSelection()
+    precondition(table.numberOfRows == 4 && activations == 2, "Double-click action expands and opens")
+    nav.activateSelection()
+    precondition(table.numberOfRows == 2 && activations == 2, "Double-click collapse does not reconnect")
     nav.onActivate = nil
     let hit = HitButton(frame: NSRect(x: 0, y: 0, width: 100, height: 30))
     let target = GestureTarget()
@@ -64,6 +71,15 @@ import ToolCore
     hit.isEnabled = false
     click(2)
     precondition(target.opens == 1, "Disabled target cannot open")
+    hit.isEnabled = true
+    var directions: [Bool] = []
+    hit.disclosureHandler = { directions.append($0) }
+    for code: UInt16 in [124, 123] {
+      hit.keyDown(with: NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+        windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: code)!)
+    }
+    precondition(directions == [true, false] && target.opens == 1, "Shell group arrow keys expand/collapse without activation")
+
     nav.expand(root)
     precondition(
       table.numberOfRows == 4 && root.children.count == 2, "Database children under one connection")
@@ -85,7 +101,25 @@ import ToolCore
     for row in 0..<table.numberOfRows {
       let view = nav.tableView(table, viewFor: table.tableColumns[0], row: row)
       precondition(view != nil, "Theme-backed reusable row creation")
+      let labels = view!.subviews.compactMap { $0 as? NSTextField }
+      precondition(!view!.subviews.contains { $0 is NSButton }, "No disclosure button in data rows")
+      let marker = labels.first { $0.stringValue == "✓" }!
+      precondition(marker.isHidden == (row != table.selectedRow), "Right-side marker follows selection")
     }
+    table.deselectAll(nil)
+    let deselected = nav.tableView(table, viewFor: table.tableColumns[0], row: 0)!
+    precondition(deselected.subviews.compactMap { $0 as? NSTextField }.first { $0.stringValue == "✓" }!.isHidden,
+      "Clearing selection removes the right-side marker")
+    var leafOpens = 0
+    nav.onActivate = { node in
+      precondition(node === leaf)
+      leafOpens += 1
+    }
+    table.selectRowIndexes(IndexSet(integer: 3), byExtendingSelection: false)
+    key(36)
+    nav.activateSelection()
+    precondition(leafOpens == 2 && table.numberOfRows == 6, "Enter/double-click open leaf without changing expansion")
+    nav.onActivate = nil
     nav.filterConnection(root.id)
     precondition(
       table.numberOfRows == 5, "Connection picker filters the tree without dropping cached roots")

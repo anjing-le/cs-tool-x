@@ -83,18 +83,23 @@ struct ServerSidebar: View {
           } else {
             model.collapsed.insert(group)
           }
+        }, doubleClick: true, onSelect: {
+          model.selectedGroup = group
+          model.selectedServerID = nil
+        }, onDisclosure: { open in
+          guard !model.searching else { return }
+          if open { model.collapsed.remove(group) } else { model.collapsed.insert(group) }
         }
       ) {
         HStack(spacing: 6) {
-          Image(
-            systemName: !model.searching && model.collapsed.contains(group)
-              ? "chevron.right" : "chevron.down"
-          )
-          .font(.system(size: 7, weight: .semibold))
+          Circle().fill(Ink.sage).frame(width: 5, height: 5)
           Text(group).font(Font(Theme.font(12, weight: .medium))).lineLimit(1)
           Text("\(count)").font(.system(size: 9)).opacity(0.7)
           Spacer(minLength: 0)
-        }.foregroundStyle(Ink.muted).padding(.leading, 7).frame(height: 26)
+          if model.selectedGroup == group {
+            Text("✓").foregroundStyle(Ink.sage).accessibilityLabel("已选中")
+          }
+        }.foregroundStyle(Ink.muted).padding(.leading, 7).padding(.trailing, 6).frame(height: 30)
       }
       IconAction(icon: "plus", label: "向\(group)新增服务器") {
         model.sidebarPanel = .server(id: nil, group: group)
@@ -102,14 +107,14 @@ struct ServerSidebar: View {
       IconAction(icon: "ellipsis", label: "管理分组\(group)") {
         model.sidebarPanel = .groupActions(group)
       }.scaleEffect(0.75).frame(width: 19, height: 25)
-    }
+    }.background(model.selectedGroup == group ? Ink.pale.opacity(0.7) : .clear, in: RoundedRectangle(cornerRadius: 8))
   }
   private func serverRow(_ server: Server) -> some View {
-    let active = (model.selectedServerID ?? model.active?.server.id) == server.id
+    let active = model.selectedGroup == nil && (model.selectedServerID ?? model.active?.server.id) == server.id
     return HStack(spacing: 0) {
       PaperAction(
         label: "打开 \(server.name) SSH 会话（双击）", action: { model.activate(server) },
-        doubleClick: true, onSelect: { model.selectedServerID = server.id }
+        doubleClick: true, onSelect: { model.selectedGroup = nil; model.selectedServerID = server.id }
       ) {
         HStack(alignment: .top, spacing: 8) {
           Image(systemName: "server.rack").font(.system(size: 14, weight: .light)).foregroundStyle(
@@ -123,7 +128,8 @@ struct ServerSidebar: View {
             ).lineLimit(1).truncationMode(.middle) }
           }
           Spacer(minLength: 0)
-        }.padding(.leading, 10).padding(.vertical, 10).help("\(server.user)@\(server.host):\(server.port)")
+          if active { Text("✓").foregroundStyle(Ink.sage).accessibilityLabel("已选中") }
+        }.padding(.leading, 10).padding(.trailing, 6).padding(.vertical, 10).help("\(server.user)@\(server.host):\(server.port)")
       }
       IconAction(icon: "ellipsis", label: "管理服务器\(server.name)") {
         model.sidebarPanel = .serverActions(server.id)

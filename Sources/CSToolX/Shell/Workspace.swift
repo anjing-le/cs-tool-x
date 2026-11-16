@@ -95,8 +95,10 @@ final class Workspace: ObservableObject {
       return searchTerms.allSatisfy { text.localizedCaseInsensitiveContains($0) }
     }
   }
+  @Published var selectedGroup: String?
   @Published var selectedServerID: Int?
   func activate(_ server: Server) {
+    selectedGroup = nil
     selectedServerID = server.id
     if let existing = sessions.last(where: { $0.server.id == server.id }) {
       select(existing.id)
@@ -180,6 +182,8 @@ final class Workspace: ObservableObject {
       message("最多同时保留 4 个终端标签，每个标签最多两块分屏。")
       return
     }
+    selectedGroup = nil
+    selectedServerID = server.id
     let session = Session(server: server)
     sessions.append(session)
     selected = session.id
@@ -187,6 +191,7 @@ final class Workspace: ObservableObject {
   func openLocal() { open(.localServer) }
   func newTab() { open(active?.server ?? .localServer) }
   func select(_ id: UUID) {
+    selectedGroup = nil
     selected = id
     selectedServerID = active?.server.id
   }
