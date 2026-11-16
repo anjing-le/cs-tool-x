@@ -4,9 +4,8 @@ import ToolCore
 /// A small object browser: local filtering, explicit refresh and one query entry.
 @MainActor
 final class DataBrowser: NSView, NSTextFieldDelegate {
-  private let titleLabel = Theme.label("", size: 18, weight: .medium)
-  private let location = Theme.label("", size: 10, muted: true)
-  private let filter = Theme.field("筛选已加载对象")
+  private let titleLabel = Theme.label("", size: 14, weight: .medium)
+  private let filter = Theme.field("筛选…")
   private let count = Theme.label("", size: 10, muted: true)
   private let table = TextTable()
   private let empty = Theme.label("", size: 12, muted: true)
@@ -25,20 +24,19 @@ final class DataBrowser: NSView, NSTextFieldDelegate {
     let browse = Theme.button("浏览", target: nil, action: #selector(noop)) as! PaperButton
     browse.selected = true
     let query = Theme.button("查询", target: self, action: #selector(query))
-    back = Theme.button("‹", target: self, action: #selector(goBack))
+    back = PaperIconButton(symbol: "chevron.left", label: "返回上级目录", target: self, action: #selector(goBack))
     back.setAccessibilityLabel("返回上级目录")
-    refresh = Theme.button("刷新", target: self, action: #selector(reload))
-    let heading = Theme.stack([back, titleLabel, NSView()], vertical: false, spacing: 10)
+    refresh = PaperIconButton(symbol: "arrow.clockwise", label: "刷新目录", target: self, action: #selector(reload))
+    let heading = Theme.stack([back, titleLabel, browse, query, NSView(), refresh], vertical: false, spacing: 8)
     heading.detachesHiddenViews = true
-    let modes = Theme.stack([browse, query, NSView()], vertical: false, spacing: 6)
-    let controls = Theme.stack([filter, count, refresh], vertical: false, spacing: 12)
+    let controls = Theme.stack([filter, count], vertical: false, spacing: 12)
     filter.delegate = self
     filter.setAccessibilityLabel("筛选已加载对象")
     let root = Theme.stack(
-      [heading, location, modes, Theme.separator(), controls, empty, table.scroll], spacing: 12)
+      [heading, controls, empty, table.scroll], spacing: 12)
     root.detachesHiddenViews = true
-    Theme.pin(root, to: self, inset: 24)
-    for view in [heading, location, modes, controls, table.scroll] {
+    Theme.pin(root, to: self, inset: 16)
+    for view in [heading, controls, table.scroll] {
       view.widthAnchor.constraint(equalTo: root.widthAnchor).isActive = true
     }
     filter.setContentHuggingPriority(.defaultLow, for: .horizontal)
@@ -54,16 +52,14 @@ final class DataBrowser: NSView, NSTextFieldDelegate {
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   func update(_ node: DataTreeNode, breadcrumb: String) {
     kind = node.profile?.kind ?? .mysql
-    titleLabel.stringValue = node.title
-    titleLabel.toolTip = node.detail
-    location.stringValue =
-      node.parentID == nil
-      ? (node.profile.map { ConnectionIdentity($0).address + " · " + $0.environment } ?? breadcrumb)
-      : breadcrumb
-    location.toolTip = node.profile?.address
+    titleLabel.stringValue = node.parentID == nil ? (node.profile?.environment ?? "") : node.title
+    titleLabel.isHidden = titleLabel.stringValue.isEmpty
+    titleLabel.toolTip = breadcrumb + " · " + node.detail
+    titleLabel.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+    headingTooltip(breadcrumb: breadcrumb, address: node.profile?.address)
     back.isHidden = node.parentID == nil
     refresh.isEnabled = !node.loading
-    refresh.title = node.loading ? "读取中…" : "刷新"
+    refresh.toolTip = node.loading ? "读取中…" : "刷新目录"
     allNodes = node.children
     empty.stringValue = node.loading ? "正在读取…" : node.loaded ? "没有可见对象" : "双击左侧对象打开"
     if let error = node.openError { empty.stringValue = error }
@@ -80,7 +76,11 @@ final class DataBrowser: NSView, NSTextFieldDelegate {
         [node.kind == .database && kind == .pg ? "Schema" : kind == .redis ? "DB" : "数据库 / Schema"],
         widths: [600])
     }
+    table.table.headerView = table.table.tableColumns.count > 1 ? NSTableHeaderView() : nil
     applyFilter()
+  }
+  private func headingTooltip(breadcrumb: String, address: String?) {
+    toolTip = [breadcrumb, address].compactMap { $0 }.joined(separator: " · ")
   }
   func controlTextDidChange(_ obj: Notification) { applyFilter() }
   private func applyFilter() {

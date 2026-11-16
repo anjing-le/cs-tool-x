@@ -9,7 +9,7 @@ final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
   private var pendingPreview: [JSONValue]?
   private let editor: NSTextView
   private let editorScroll: NSScrollView
-  private let resultFilter = Theme.field("筛选当前结果")
+  private let resultFilter = Theme.field("筛选结果…")
   private let context = Theme.label("", size: 11, muted: true)
   private var projection: ResultProjection?
   private var shownIndices: [Int] = []
@@ -18,8 +18,8 @@ final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
   private(set) var queryMode = true
   private var suggestedQuery: String
   private let targetField = Theme.field("ES 索引名称，例如 orders-*")
-  private let status = Theme.label("按需读取 · 不自动扫描", size: 11, muted: true)
-  private let note = Theme.label("结果最多 500 行 · 双击单元格展开", size: 10, muted: true)
+  private let status = Theme.label("", size: 11, muted: true)
+  private let note = Theme.label("", size: 10, muted: true)
   private let errorLabel = Theme.label("", size: 11)
   private let results = TextTable()
   private var output: QueryOutput?
@@ -59,29 +59,29 @@ final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     editor.delegate = self
     editor.string = profile.kind.initialQuery
     editor.setAccessibilityLabel(profile.kind == .redis ? "Redis key 模式" : "查询编辑器")
-    let title = Theme.label(profile.displayName, size: 17, weight: .medium)
-    let badge = Theme.label(profile.environment, size: 10, muted: true)
     disconnectButton = Theme.button("断开", target: self, action: #selector(disconnect))
-    let heading = Theme.stack([title, badge, NSView()], vertical: false)
-    let sub = Theme.label(
-      profile.address, size: 11, muted: true)
-    catalogButton = Theme.button(
-      "‹ 目录", target: self, action: #selector(catalog))
-    historyButton = Theme.button("本次历史", target: self, action: #selector(showHistory))
-    runButton = Theme.button("执行  ⌘↵", target: self, action: #selector(run), primary: true)
+    toolTip = profile.displayName + " · " + profile.address + " · " + profile.environment
+    catalogButton = PaperIconButton(symbol: "list.bullet", label: "返回目录", target: self, action: #selector(catalog))
+    historyButton = PaperIconButton(symbol: "clock", label: "本次查询历史", target: self, action: #selector(showHistory))
+    runButton = Theme.button("执行", target: self, action: #selector(run), primary: true)
     runButton.keyEquivalent = "\r"
     runButton.keyEquivalentModifierMask = [.command]
     browseButton = Theme.button("浏览", target: self, action: #selector(selectBrowse)) as? PaperButton
     queryButton = Theme.button("查询", target: self, action: #selector(selectQuery)) as? PaperButton
     context.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     context.stringValue = profile.kind == .es ? "选择索引" : profile.database
+    let environment = Theme.label(profile.environment, size: 10, muted: true)
+    environment.isHidden = profile.environment.isEmpty
     let toolbar = Theme.stack(
-      [catalogButton, browseButton, queryButton, context, NSView(), historyButton, runButton],
+      [catalogButton, browseButton, queryButton, context, NSView(), environment, historyButton, runButton],
       vertical: false, spacing: 8)
     toolbar.detachesHiddenViews = true
     targetField.isHidden = profile.kind != .es
     nextButton = Theme.button("下一批 →", target: self, action: #selector(nextBatch))
     nextButton.isHidden = true
+    runButton.toolTip = "执行 ⌘↵"
+    note.isHidden = true
+    results.scroll.toolTip = "双击单元格查看完整内容"
     resultFilter.delegate = self
     resultFilter.setAccessibilityLabel("筛选当前结果")
     let resultBar = Theme.stack([resultFilter, status, NSView(), nextButton], vertical: false)
@@ -91,14 +91,14 @@ final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     errorLabel.isHidden = true
     let root = Theme.stack(
       [
-        heading, sub, Theme.separator(), toolbar, targetField, scroll, errorLabel, resultBar,
+        toolbar, targetField, scroll, errorLabel, resultBar,
         results.scroll, note,
       ], spacing: 12)
     root.alignment = .leading
     root.detachesHiddenViews = true
-    Theme.pin(root, to: self, inset: 26)
+    Theme.pin(root, to: self, inset: 16)
     for view in [
-      heading, sub, toolbar, targetField, scroll, errorLabel, resultBar, results.scroll, note,
+      toolbar, targetField, scroll, errorLabel, resultBar, results.scroll, note,
     ] {
       view.translatesAutoresizingMaskIntoConstraints = false
       view.widthAnchor.constraint(equalTo: root.widthAnchor).isActive = true
@@ -163,7 +163,7 @@ final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     ] {
       button?.isEnabled = !value
     }
-    status.stringValue = value ? "等待响应…" : "按需读取"
+    status.stringValue = value ? "等待响应…" : ""
   }
   private func perform(action: String, text: String, target: String? = nil, cursor: String = "0") {
     guard !busy else { return }

@@ -40,7 +40,6 @@ final class WorkbenchController: NSWindowController {
   private var header: NSStackView!
   private var headerHeight: NSLayoutConstraint!
   private let title = Theme.label("", size: 11, muted: true)
-  private let footer = Theme.label("双击打开 · 回车打开", size: 10, muted: true)
   var onCheckUpdates: (() -> Void)?
   init(engine: EngineClient) {
     self.engine = engine
@@ -112,21 +111,20 @@ final class WorkbenchController: NSWindowController {
     let context = NSView()
     context.wantsLayer = true
     context.layer?.backgroundColor = Theme.sidebar.cgColor
-    let add = Theme.button("＋", target: self, action: #selector(newConnection))
+    let add = PaperIconButton(symbol: "plus", label: "新建数据连接", target: self, action: #selector(newConnection))
     add.toolTip = "新建数据连接"
     connectionPicker.setAccessibilityLabel("切换数据连接")
     connectionPicker.onChange(target: self, action: #selector(selectConnection))
     connectionPicker.widthAnchor.constraint(greaterThanOrEqualToConstant: 210).isActive = true
-    let menu = Theme.button("•••", target: self, action: #selector(connectionActions(_:)))
+    let menu = PaperIconButton(symbol: "ellipsis", label: "连接设置与会话管理", target: self, action: #selector(connectionActions(_:)))
     menu.toolTip = "连接设置与会话管理"
-    let heading = Theme.stack([connectionPicker, NSView(), add, menu], vertical: false)
+    let heading = Theme.stack([connectionPicker, NSView(), add, menu], vertical: false, spacing: 6)
     let side = Theme.stack(
       [
-        heading, Theme.label("连接 / 库 / Schema / 对象", size: 10, muted: true), navigator.scroll,
-        footer,
+        heading, navigator.scroll,
       ], spacing: 14)
     Theme.pin(side, to: context, inset: 16)
-    for view in [heading, navigator.scroll, footer] {
+    for view in [heading, navigator.scroll] {
       view.widthAnchor.constraint(equalTo: side.widthAnchor).isActive = true
     }
     context.widthAnchor.constraint(equalToConstant: 330).isActive = true
@@ -170,7 +168,7 @@ final class WorkbenchController: NSWindowController {
     selectedModule = module
     header.isHidden = false
     headerHeight.constant = 43
-    title.stringValue = module == .terminal || module == .git ? "" : module.title
+    title.stringValue = ""
     switch module {
     case .data:
       display(dataRoot, in: body)
@@ -247,7 +245,7 @@ final class WorkbenchController: NSWindowController {
       connectionPicker.selectItem(at: index)
     }
     navigator.filterConnection(selectedConnectionID)
-    footer.stringValue = "\(groups.count) 个连接 · 双击或回车打开"
+    connectionPicker.toolTip = "\(groups.count) 个连接"
     if let browser, dataContent.subviews.contains(where: { $0 === browser }) {
       if let id = browserNodeID, let node = navigator.node(id) {
         showTreeOverview(node)
@@ -274,9 +272,7 @@ final class WorkbenchController: NSWindowController {
     let view = NSView()
     let stack = Theme.stack(
       [
-        Theme.label("数据", size: 26, weight: .medium),
-        Theme.label("MySQL / PostgreSQL / Elasticsearch / Redis", size: 12, muted: true),
-        Theme.button("新建连接 ↗", target: self, action: #selector(newConnection), primary: true),
+        Theme.button("新建连接", target: self, action: #selector(newConnection), primary: true),
       ], spacing: 24)
     stack.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(stack)

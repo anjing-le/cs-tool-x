@@ -76,11 +76,10 @@ struct WorkspaceView: View {
           }
         }
       }
-      bottomBar
     }
-    .padding(.top, 12)
+    .padding(.top, 4)
     .foregroundStyle(Ink.main)
-    .font(.system(size: 12))
+    .font(Font(Theme.font(14)))
     .preferredColorScheme(.light).tint(Ink.sage)
     .overlay(alignment: .bottom) {
       if let notice = model.notice {
@@ -93,10 +92,6 @@ struct WorkspaceView: View {
   }
   private var topBar: some View {
     HStack(spacing: 9) {
-      Text("Shell").font(.system(size: 17, weight: .semibold, design: .rounded)).tracking(-0.6)
-      Text("SSH").font(.system(size: 10)).foregroundStyle(Ink.sage)
-        .padding(.horizontal, 8).padding(.vertical, 4).background(
-          Ink.pale.opacity(0.6), in: Capsule())
       Spacer()
       IconAction(icon: "sidebar.left", label: "显示或隐藏服务器栏", selected: sidebar) {
         model.sidebarPanel = nil
@@ -109,7 +104,7 @@ struct WorkspaceView: View {
       Color.clear.frame(width: 1, height: 14).overlay(Ink.line)
       IconAction(icon: "sidebar.right", label: "显示或隐藏文件栏", selected: files) { files.toggle() }
       IconAction(icon: "gearshape", label: "设置") { model.settings.toggle() }
-    }.padding(.horizontal, 22).padding(.bottom, 12)
+    }.padding(.horizontal, 18).padding(.bottom, 4)
   }
   private var serverSidebar: some View {
     ServerSidebar(model: model)
@@ -149,9 +144,8 @@ struct WorkspaceView: View {
         VStack(spacing: 15) {
           Image(systemName: "terminal").font(.system(size: 34, weight: .ultraLight))
             .foregroundStyle(Ink.sage)
-          Text("从左侧打开一台服务器").font(.system(size: 14)).foregroundStyle(Ink.muted)
           PaperAction(label: "打开本地终端", action: { model.openLocal() }) {
-            Text("本地终端").padding(.horizontal, 15).padding(.vertical, 10).background(
+            Text("本地终端").font(Font(Theme.font(14))).padding(.horizontal, 15).padding(.vertical, 10).background(
               Ink.pale, in: Capsule())
           }
         }.frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -160,24 +154,11 @@ struct WorkspaceView: View {
   }
   private var fileSidebar: some View {
     VStack(alignment: .leading, spacing: 15) {
-      HStack {
-        Text("文件").font(.system(size: 13, weight: .medium))
-        Spacer()
-        IconAction(icon: "arrow.clockwise", label: "远程目录尚未接入") {
-          model.message("图形化目录正在接入。可先使用同一工作区的 SFTP 控制台。")
-        }
-        IconAction(icon: "arrow.up.doc", label: "上传入口待接入") { model.message("文件上传可先在 SFTP 控制台中执行。") }
-      }
-      HStack(spacing: 6) {
-        Image(systemName: "folder").foregroundStyle(Ink.sage)
-        Text("尚未读取远程目录").font(.system(size: 10)).foregroundStyle(Ink.muted)
-      }
       Spacer()
-      VStack(spacing: 10) {
-        Image(systemName: "folder").font(.system(size: 25, weight: .ultraLight)).foregroundStyle(
-          Ink.sage)
-        Text("目录浏览待接入").font(.system(size: 11)).foregroundStyle(Ink.muted)
-      }.frame(maxWidth: .infinity)
+      Image(systemName: "folder").font(.system(size: 25, weight: .ultraLight))
+        .foregroundStyle(Ink.sage).frame(maxWidth: .infinity)
+      Text("目录浏览尚未提供").font(Font(Theme.font(12))).foregroundStyle(Ink.muted)
+        .frame(maxWidth: .infinity)
       Spacer()
       PaperAction(label: "在当前 Shell 打开 SFTP 控制台", action: openFiles) {
         HStack {
@@ -189,14 +170,6 @@ struct WorkspaceView: View {
       }
     }.padding(.leading, 7).padding(.trailing, 18).padding(.top, 12).padding(.bottom, 18)
   }
-  private var bottomBar: some View {
-    HStack(spacing: 7) {
-      Circle().fill(Ink.sage.opacity(0.7)).frame(width: 5, height: 5)
-      Text(model.active.map { "\($0.server.name) · 终端会话" } ?? "没有打开的会话")
-      Spacer()
-      Text("⌘T 新标签     ⌘D 分屏     ⌘⇧[ / ] 切换")
-    }.font(.system(size: 10)).foregroundStyle(Ink.muted).padding(.horizontal, 24).frame(height: 31)
-  }
   private var settings: some View {
     VStack(alignment: .leading, spacing: 28) {
       HStack {
@@ -204,7 +177,6 @@ struct WorkspaceView: View {
         Spacer()
         IconAction(icon: "xmark", label: "返回工作区") { model.settings = false }
       }
-      Text("外观与工作区").font(.system(size: 11)).foregroundStyle(Ink.muted)
       HStack {
         Text("服务器侧栏")
         Spacer()
@@ -220,10 +192,6 @@ struct WorkspaceView: View {
         }
       }
       Rectangle().fill(Ink.line).frame(height: 1)
-      Text("服务器分组与连接信息本地保存；密码不保存，认证由终端与系统 SSH 完成。")
-        .font(.system(size: 12)).foregroundStyle(Ink.muted)
-      Text("⌘, 设置    Esc 返回    ⌘B 侧栏    ⌘⇧E 文件栏")
-        .font(.system(size: 11)).foregroundStyle(Ink.muted)
       Spacer()
     }.padding(42).frame(maxWidth: 640, maxHeight: .infinity).frame(maxWidth: .infinity)
   }
@@ -249,7 +217,7 @@ struct SessionTab: View {
       PaperAction(label: "切换到 \(session.server.name) 标签 \(index + 1)", action: select) {
         HStack(spacing: 7) {
           Circle().fill(session.server.tint).frame(width: 5, height: 5)
-          Text(session.server.name).font(.system(size: 11, weight: selected ? .medium : .regular))
+          Text(session.server.name).font(Font(Theme.font(13, weight: selected ? .medium : .regular)))
           if session.second != nil {
             Image(systemName: "rectangle.split.2x1").font(.system(size: 9)).foregroundStyle(
               Ink.muted)
@@ -320,9 +288,10 @@ struct TerminalPane: View {
   var body: some View {
     VStack(spacing: 0) {
       HStack(spacing: 6) {
-        Text(terminal.server.name).foregroundStyle(Ink.sage)
+        Image(systemName: terminal.server.local ? "terminal" : "network").foregroundStyle(Ink.sage)
+          .help(terminal.server.name)
         Spacer(minLength: 0)
-        Text(terminal.status).foregroundStyle(Ink.muted).lineLimit(1)
+        Text(terminal.status).foregroundStyle(Ink.muted).lineLimit(1).help(terminal.status)
         if let close { IconAction(icon: "xmark", label: "关闭此分屏", action: close) }
       }.font(.system(size: 10, design: .monospaced)).padding(.horizontal, 12).frame(height: 36)
       LiveTerminalView(terminal: terminal).id(terminal.id).padding(7)

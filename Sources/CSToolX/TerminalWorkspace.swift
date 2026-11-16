@@ -6,7 +6,6 @@ import ToolCore
 final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
   private let sftp: Bool
   private let savedServer: Server?
-  private let passwordDisplay = Theme.field("未保存密码，使用交互认证")
   private let host = Theme.field("SSH Host 别名或地址")
   private let user = Theme.field("用户名，可留空使用 SSH 配置")
   private let port = Theme.field("22")
@@ -31,25 +30,14 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
     localButton.isHidden = sftp
     stopButton = Theme.button("断开", target: self, action: #selector(stop))
     stopButton.isEnabled = false
-    passwordDisplay.stringValue = server?.password ?? ""
-    passwordDisplay.isEditable = false
-    passwordDisplay.isSelectable = true
-    passwordDisplay.setAccessibilityLabel("密码 · 本机明文")
-    let credentials = Theme.stack(
-      [Theme.label("密码 · 本机明文"), passwordDisplay], vertical: false, spacing: 12)
-    credentials.isHidden = (server?.password ?? "").isEmpty
-    let title = Theme.label(sftp ? "SFTP 控制台" : "终端", size: 23, weight: .medium)
-    let subtitle = Theme.label(
-      sftp ? "基于系统 sftp；图形化目录与传输队列正在规划。" : "使用系统 OpenSSH、SSH 配置与 Agent；主机指纹由你确认。", size: 11,
-      muted: true)
     let fields = Theme.stack(
       [host, user, port, startButton, localButton, stopButton], vertical: false, spacing: 9)
     port.widthAnchor.constraint(equalToConstant: 64).isActive = true
     user.widthAnchor.constraint(equalToConstant: 180).isActive = true
     let root = Theme.stack(
-      [title, subtitle, Theme.separator(), fields, credentials, container, status], spacing: 17)
-    Theme.pin(root, to: self, inset: 26)
-    for view in [subtitle, fields, credentials, container, status] {
+      [fields, container, status], spacing: 12)
+    Theme.pin(root, to: self, inset: 16)
+    for view in [fields, container, status] {
       view.widthAnchor.constraint(equalTo: root.widthAnchor).isActive = true
     }
     if server != nil {
@@ -58,14 +46,8 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
       port.isEnabled = false
     }
     container.heightAnchor.constraint(greaterThanOrEqualToConstant: 250).isActive = true
-    let hint = Theme.label(
-      sftp ? "连接后使用 ls、cd、get、put。" : "连接 SSH，或打开一个本地终端。", size: 13, muted: true)
-    hint.translatesAutoresizingMaskIntoConstraints = false
-    container.addSubview(hint)
-    NSLayoutConstraint.activate([
-      hint.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-      hint.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-    ])
+    toolTip = sftp ? "SFTP 控制台" : "终端"
+
   }
   required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
   @objc private func connect() {
@@ -113,7 +95,7 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
     host.isEnabled = false
     user.isEnabled = false
     port.isEnabled = false
-    status.stringValue = "会话运行中 · 输出仅保留在内存"
+    status.stringValue = "会话运行中"
     terminal.startProcess(
       executable: executable, args: args,
       environment: environment,

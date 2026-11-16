@@ -5,19 +5,11 @@ struct ServerSidebar: View {
   @FocusState private var searchFocused: Bool
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
-      HStack(spacing: 5) {
-        Text("服务器").font(.system(size: 13, weight: .medium))
-        Text("\(model.searching ? model.matchingServers.count : model.servers.count)")
-          .font(.system(size: 10)).foregroundStyle(Ink.muted)
-        Spacer()
-        IconAction(icon: "plus", label: "新增服务器或分组", selected: model.sidebarPanel == .add) {
-          model.sidebarPanel = model.sidebarPanel == .add ? nil : .add
-        }
-      }
+      HStack(spacing: 4) {
       HStack(spacing: 7) {
         Image(systemName: "magnifyingglass").foregroundStyle(Ink.muted)
-        TextField("搜索名称、地址…", text: $model.query)
-          .textFieldStyle(.plain).font(.system(size: 11)).focused($searchFocused)
+        TextField("搜索…", text: $model.query)
+          .textFieldStyle(.plain).font(Font(Theme.font(13))).focused($searchFocused)
           .onSubmit { if let first = model.matchingServers.first { model.activate(first) } }
           .onKeyPress(.escape) {
             model.query = ""
@@ -34,6 +26,10 @@ struct ServerSidebar: View {
         .overlay(
           RoundedRectangle(cornerRadius: 8).stroke(
             searchFocused ? Ink.sage.opacity(0.5) : Ink.line.opacity(0.6)))
+      IconAction(icon: "plus", label: "新增服务器或分组", selected: model.sidebarPanel == .add) {
+        model.sidebarPanel = model.sidebarPanel == .add ? nil : .add
+      }
+      }
       ScrollView {
         VStack(alignment: .leading, spacing: 17) {
           ForEach(model.groups, id: \.self) { group in
@@ -74,10 +70,6 @@ struct ServerSidebar: View {
           }
         }
       }.scrollIndicators(.hidden)
-      HStack(spacing: 6) {
-        Image(systemName: "lock.shield").font(.system(size: 11))
-        Text("配置保存在本机 · SSH").font(.system(size: 10))
-      }.foregroundStyle(Ink.muted).padding(.leading, 8)
     }.padding(.leading, 18).padding(.trailing, 9).padding(.top, 8).padding(.bottom, 18)
   }
   private func groupHeader(_ group: String, count: Int) -> some View {
@@ -99,7 +91,7 @@ struct ServerSidebar: View {
               ? "chevron.right" : "chevron.down"
           )
           .font(.system(size: 7, weight: .semibold))
-          Text(group).font(.system(size: 10, weight: .medium)).lineLimit(1)
+          Text(group).font(Font(Theme.font(12, weight: .medium))).lineLimit(1)
           Text("\(count)").font(.system(size: 9)).opacity(0.7)
           Spacer(minLength: 0)
         }.foregroundStyle(Ink.muted).padding(.leading, 7).frame(height: 26)
@@ -124,14 +116,14 @@ struct ServerSidebar: View {
             server.tint
           ).padding(.top, 1)
           VStack(alignment: .leading, spacing: 6) {
-            Text(server.name).font(.system(size: 12, weight: active ? .medium : .regular))
+            Text(server.name).font(Font(Theme.font(14, weight: active ? .medium : .regular)))
               .lineLimit(1)
-            Text(server.host).font(.system(size: 10, design: .monospaced)).foregroundStyle(
+            if active { Text(server.host).font(.system(size: 10, design: .monospaced)).foregroundStyle(
               Ink.muted
-            ).lineLimit(1).truncationMode(.middle)
+            ).lineLimit(1).truncationMode(.middle) }
           }
           Spacer(minLength: 0)
-        }.padding(.leading, 10).padding(.vertical, 11)
+        }.padding(.leading, 10).padding(.vertical, 10).help("\(server.user)@\(server.host):\(server.port)")
       }
       IconAction(icon: "ellipsis", label: "管理服务器\(server.name)") {
         model.sidebarPanel = .serverActions(server.id)
