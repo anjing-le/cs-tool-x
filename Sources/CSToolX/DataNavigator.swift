@@ -41,7 +41,8 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     let depth: Int
   }
   private let table = NavigatorTable()
-  let scroll = NSScrollView()
+  let scroll = NavigatorScroll()
+  private var measuredWidth: CGFloat = 0
   private(set) var roots: [DataTreeNode] = []
   private var visible: [Visible] = []
   private var expanded: Set<String> = []
@@ -55,6 +56,7 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
   var onActivate: ((DataTreeNode) -> Void)?
   override init() {
     super.init()
+    table.style = .plain
     table.delegate = self
     table.dataSource = self
     table.headerView = nil
@@ -77,6 +79,12 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     scroll.scrollerStyle = .overlay
     scroll.autohidesScrollers = true
     table.navigate = { [weak self] key in self?.navigate(key) }
+    scroll.onWidth = { [weak self] width in
+      guard let self, width > 0, abs(width - measuredWidth) > 0.5 else { return }
+      measuredWidth = width
+      table.setFrameSize(NSSize(width: width, height: table.frame.height))
+      table.tableColumns[0].width = width
+    }
   }
   func update(_ groups: [ConnectionGroup]) {
     let previous = Dictionary(uniqueKeysWithValues: roots.map { ($0.id, $0) })
@@ -340,5 +348,13 @@ private final class NavigatorCell: NSTableCellView {
     toolTip = String(
       (node.openError ?? (node.detail.isEmpty ? node.title : node.title + "\n" + node.detail))
         .prefix(2000))
+  }
+}
+
+@MainActor final class NavigatorScroll: NSScrollView {
+  var onWidth: ((CGFloat) -> Void)?
+  override func tile() {
+    super.tile()
+    onWidth?(contentView.bounds.width)
   }
 }

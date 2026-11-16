@@ -37,6 +37,22 @@ import ToolCore
     }
     table.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
     precondition(table.numberOfRows == 2 && activations == 0, "Selection neither expands nor connects")
+    let sidebarWindow = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 298, height: 680),
+      styleMask: [.borderless], backing: .buffered, defer: false)
+    sidebarWindow.contentView = nav.scroll
+    for width in [298.0, 210.0, 330.0] {
+      sidebarWindow.setContentSize(NSSize(width: width, height: 680))
+      nav.scroll.tile()
+      nav.scroll.layoutSubtreeIfNeeded()
+      table.layoutSubtreeIfNeeded()
+      let cell = table.view(atColumn: 0, row: 0, makeIfNecessary: true)!
+      cell.layoutSubtreeIfNeeded()
+      let marker = cell.subviews.compactMap { $0 as? NSTextField }.first { $0.stringValue == "✓" }!
+      let rect = marker.convert(marker.bounds, to: nav.scroll.contentView)
+      precondition(!marker.isHidden && nav.scroll.contentView.bounds.contains(rect),
+        "Selection marker stays inside narrow sidebar viewport")
+      precondition(abs(table.frame.width - nav.scroll.contentSize.width) < 1, "Tree matches viewport without inset overflow")
+    }
     key(36)
     precondition(table.numberOfRows == 4 && activations == 1, "Enter expands and opens connection once")
     key(36)
