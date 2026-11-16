@@ -36,6 +36,9 @@ jobs:
           mkdir -p .local
           swiftc -parse-as-library Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift tools/cursor-regression.swift -o .local/cursor-regression
           .local/cursor-regression
+      - name: Terminal colors and local PTY
+        timeout-minutes: 3
+        run: python3 tools/terminal-color-regression.py
       - name: Data tree component regression
         timeout-minutes: 3
         run: |

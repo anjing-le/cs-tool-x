@@ -3,6 +3,9 @@ import SwiftUI
 struct ServerSidebar: View {
   @ObservedObject var model: Workspace
   @FocusState private var searchFocused: Bool
+  @State private var searchHovered = false
+  @State private var hoveredGroup: String?
+  @State private var hoveredServer: Int?
   var body: some View {
     VStack(alignment: .leading, spacing: 14) {
       HStack(spacing: 4) {
@@ -26,10 +29,10 @@ struct ServerSidebar: View {
         .overlay(
           RoundedRectangle(cornerRadius: 8).stroke(
             searchFocused ? Ink.sage.opacity(0.5) : Ink.line.opacity(0.6)))
-      IconAction(icon: "plus", label: "新增服务器或分组", selected: model.sidebarPanel == .add) {
+      IconAction(icon: "plus", label: "新增服务器或分组", selected: model.sidebarPanel == .add, visible: searchHovered) {
         model.sidebarPanel = model.sidebarPanel == .add ? nil : .add
       }
-      }
+      }.onHover { searchHovered = $0 }
       ScrollView {
         VStack(alignment: .leading, spacing: 17) {
           ForEach(model.groups, id: \.self) { group in
@@ -39,16 +42,7 @@ struct ServerSidebar: View {
                 groupHeader(group, count: matches.count)
                 if model.searching || !model.collapsed.contains(group) {
                   ForEach(matches) { server in serverRow(server) }
-                  if matches.isEmpty && !model.searching {
-                    PaperAction(
-                      label: "向\(group)添加服务器",
-                      action: { model.sidebarPanel = .server(id: nil, group: group) }
-                    ) {
-                      Text("添加第一台服务器").font(.system(size: 10)).foregroundStyle(Ink.muted)
-                        .frame(maxWidth: .infinity, alignment: .leading).padding(.horizontal, 10)
-                        .padding(.vertical, 11)
-                    }
-                  }
+
                 }
               }
             }
@@ -75,7 +69,7 @@ struct ServerSidebar: View {
   private func groupHeader(_ group: String, count: Int) -> some View {
     HStack(spacing: 1) {
       PaperAction(
-        label: "展开或收起\(group)",
+        label: "\(group)：单击展开或收起，双击改名，F2 改名",
         action: {
           guard !model.searching else { return }
           if model.collapsed.contains(group) {
@@ -83,12 +77,14 @@ struct ServerSidebar: View {
           } else {
             model.collapsed.insert(group)
           }
-        }, doubleClick: true, onSelect: {
+        }, onSelect: {
           model.selectedGroup = group
           model.selectedServerID = nil
         }, onDisclosure: { open in
           guard !model.searching else { return }
           if open { model.collapsed.remove(group) } else { model.collapsed.insert(group) }
+        }, onDoubleClick: {
+          model.sidebarPanel = .group(original: group)
         }
       ) {
         HStack(spacing: 6) {
@@ -101,13 +97,16 @@ struct ServerSidebar: View {
           }
         }.foregroundStyle(Ink.muted).padding(.leading, 7).padding(.trailing, 6).frame(height: 30)
       }
-      IconAction(icon: "plus", label: "向\(group)新增服务器") {
+      IconAction(icon: "plus", label: "向\(group)新增服务器", visible: hoveredGroup == group) {
         model.sidebarPanel = .server(id: nil, group: group)
       }.scaleEffect(0.75).frame(width: 19, height: 25)
-      IconAction(icon: "ellipsis", label: "管理分组\(group)") {
+      IconAction(icon: "ellipsis", label: "管理分组\(group)", visible: hoveredGroup == group) {
         model.sidebarPanel = .groupActions(group)
       }.scaleEffect(0.75).frame(width: 19, height: 25)
     }.background(model.selectedGroup == group ? Ink.pale.opacity(0.7) : .clear, in: RoundedRectangle(cornerRadius: 8))
+      .onHover { inside in
+        if inside { hoveredGroup = group } else if hoveredGroup == group { hoveredGroup = nil }
+      }
   }
   private func serverRow(_ server: Server) -> some View {
     let active = model.selectedGroup == nil && (model.selectedServerID ?? model.active?.server.id) == server.id
@@ -131,11 +130,14 @@ struct ServerSidebar: View {
           if active { Text("✓").foregroundStyle(Ink.sage).accessibilityLabel("已选中") }
         }.padding(.leading, 10).padding(.trailing, 6).padding(.vertical, 10).help("\(server.user)@\(server.host):\(server.port)")
       }
-      IconAction(icon: "ellipsis", label: "管理服务器\(server.name)") {
+      IconAction(icon: "ellipsis", label: "管理服务器\(server.name)", visible: hoveredServer == server.id) {
         model.sidebarPanel = .serverActions(server.id)
       }
       .scaleEffect(0.8).frame(width: 24).padding(.trailing, 3)
     }.background(active ? Ink.pale.opacity(0.7) : .clear, in: RoundedRectangle(cornerRadius: 9))
+      .onHover { inside in
+        if inside { hoveredServer = server.id } else if hoveredServer == server.id { hoveredServer = nil }
+      }
   }
 }
 
@@ -343,7 +345,6 @@ private struct GroupEditor: View {
           save)
       if let error { Text(error).font(.system(size: 11)).foregroundStyle(Ink.peach) }
       HStack {
-        Text("连接元数据保存在本机").font(.system(size: 9)).foregroundStyle(Ink.muted)
         Spacer()
         PaperAction(label: original == nil ? "创建分组" : "保存分组名称", action: save) {
           Text(original == nil ? "创建" : "保存").font(.system(size: 12, weight: .medium))

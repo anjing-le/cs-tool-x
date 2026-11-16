@@ -69,7 +69,7 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
       if let savedServer {
         environment = try ShellAuthentication.environment(for: savedServer)
       } else {
-        environment = nil
+        environment = TerminalAppearance.environment(base: ProcessInfo.processInfo.environment, local: executable == "/bin/zsh").map { "\($0.key)=\($0.value)" }
       }
     } catch {
       Theme.error(error, window: window)
@@ -80,8 +80,7 @@ final class TerminalWorkspace: NSView, LocalProcessTerminalViewDelegate {
     self.gate = gate
     terminal.terminalDelegate = gate
     terminal.processDelegate = self
-    terminal.nativeBackgroundColor = Theme.paper
-    terminal.nativeForegroundColor = Theme.ink
+    TerminalAppearance.apply(to: terminal)
     terminal.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
     // Bounded scrollback; no session recording or idle screen polling.
     terminal.getTerminal().changeHistorySize(2000)

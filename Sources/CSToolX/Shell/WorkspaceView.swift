@@ -8,13 +8,15 @@ struct PaperAction<Content: View>: View {
   var doubleClick = false
   var onSelect: (() -> Void)? = nil
   var onDisclosure: ((Bool) -> Void)? = nil
+  var onDoubleClick: (() -> Void)? = nil
+  var onFocusChange: ((Bool) -> Void)? = nil
   @ViewBuilder let content: () -> Content
   @State private var hovered = false
   var body: some View {
     content().allowsHitTesting(false)
       .background(hovered ? Ink.main.opacity(0.055) : .clear, in: RoundedRectangle(cornerRadius: 8))
       .overlay(
-        ActionTarget(label: label, doubleClick: doubleClick, onSelect: onSelect, onDisclosure: onDisclosure, action: action)
+        ActionTarget(label: label, doubleClick: doubleClick, onSelect: onSelect, onDisclosure: onDisclosure, onDoubleClick: onDoubleClick, onFocusChange: onFocusChange, action: action)
       )
       .onHover { hovered = $0 }
   }
@@ -23,14 +25,17 @@ struct IconAction: View {
   let icon: String
   let label: String
   var selected = false
+  var visible = true
   let action: () -> Void
+  @State private var focused = false
   var body: some View {
-    PaperAction(label: label, action: action) {
+    PaperAction(label: label, action: action, onFocusChange: { focused = $0 }) {
       Image(systemName: icon).font(.system(size: 14, weight: .regular))
         .foregroundStyle(selected ? Ink.sage : Ink.muted)
         .frame(width: 30, height: 30)
         .background(
           selected ? Ink.pale.opacity(0.75) : .clear, in: RoundedRectangle(cornerRadius: 7))
+        .opacity(visible || focused || selected ? 1 : 0)
     }
   }
 }
@@ -42,6 +47,7 @@ struct WorkspaceView: View {
   @AppStorage("sidebar.width") private var sidebarWidth = 206.0
   @AppStorage("files.width") private var fileWidth = 252.0
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
+  @State private var tabsHovered = false
   var body: some View {
     VStack(spacing: 0) {
       topBar
@@ -135,9 +141,9 @@ struct WorkspaceView: View {
               return true
             }
           }
-          IconAction(icon: "plus", label: "新建会话") { model.newTab() }
+          IconAction(icon: "plus", label: "新建会话", visible: tabsHovered) { model.newTab() }
         }.padding(.horizontal, 7).padding(.vertical, 7)
-      }.scrollIndicators(.hidden).frame(height: 48)
+      }.scrollIndicators(.hidden).frame(height: 48).onHover { tabsHovered = $0 }
       if let session = model.active {
         SessionView(session: session).id(session.id)
           .padding(.horizontal, 8).padding(.bottom, 12)
@@ -225,9 +231,8 @@ struct SessionTab: View {
           }
         }.padding(.leading, 11).padding(.trailing, 7).frame(height: 33)
       }
-      IconAction(icon: "xmark", label: "关闭 \(session.server.name) 标签") { close() }
-        .frame(width: 25, height: 27).opacity(selected || hovered ? 1 : 0)
-        .allowsHitTesting(selected || hovered).accessibilityHidden(!(selected || hovered))
+      IconAction(icon: "xmark", label: "关闭 \(session.server.name) 标签", visible: selected || hovered) { close() }
+        .frame(width: 25, height: 27)
     }.padding(.trailing, 3).background(
       selected ? Color.white.opacity(0.65) : .clear, in: RoundedRectangle(cornerRadius: 8)
     )

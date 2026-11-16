@@ -19,8 +19,7 @@ final class RealTerminal: ObservableObject, Identifiable, LocalProcessTerminalVi
     self.gate = gate
     terminal.terminalDelegate = gate
     terminal.processDelegate = self
-    terminal.nativeBackgroundColor = Theme.paper
-    terminal.nativeForegroundColor = Theme.ink
+    TerminalAppearance.apply(to: terminal)
     terminal.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
     terminal.getTerminal().changeHistorySize(2000)
     self.view = terminal

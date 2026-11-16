@@ -3,7 +3,7 @@ import Foundation
 import ToolCore
 
 @main struct DataTreeRegression {
-  @MainActor static func main() throws {
+  @MainActor static func main() async throws {
     _ = NSApplication.shared
     NSApp.setActivationPolicy(.prohibited)
     var first = ConnectionProfile(kind: .pg)
@@ -96,6 +96,27 @@ import ToolCore
     }
     precondition(directions == [true, false] && target.opens == 1, "Shell group arrow keys expand/collapse without activation")
 
+    let groupHit = HitButton(frame: NSRect(x: 0, y: 0, width: 100, height: 30))
+    let groupTarget = GestureTarget()
+    groupHit.target = groupTarget
+    groupHit.action = #selector(GestureTarget.open)
+    var renames = 0
+    groupHit.doubleClickHandler = { renames += 1 }
+    func groupClick(_ count: Int) {
+      groupHit.mouseDown(with: NSEvent.mouseEvent(with: .leftMouseDown, location: .zero, modifierFlags: [],
+        timestamp: 0, windowNumber: 0, context: nil, eventNumber: count, clickCount: count, pressure: 1)!)
+    }
+    groupClick(1)
+    groupClick(2)
+    try await Task.sleep(for: .seconds(NSEvent.doubleClickInterval + 0.1))
+    precondition(renames == 1 && groupTarget.opens == 0, "Group double click renames without toggling")
+    groupClick(1)
+    try await Task.sleep(for: .seconds(NSEvent.doubleClickInterval + 0.1))
+    precondition(groupTarget.opens == 1 && renames == 1, "Group single click toggles exactly once")
+    groupClick(1)
+    groupHit.isEnabled = false
+    try await Task.sleep(for: .seconds(NSEvent.doubleClickInterval + 0.1))
+    precondition(groupTarget.opens == 1, "Disabled pending group action cannot toggle")
     nav.expand(root)
     precondition(
       table.numberOfRows == 4 && root.children.count == 2, "Database children under one connection")
