@@ -3,7 +3,7 @@ import Foundation
 import ToolCore
 
 @main struct DataTreeRegression {
-  @MainActor static func main() async throws {
+  @MainActor static func main() throws {
     _ = NSApplication.shared
     NSApp.setActivationPolicy(.prohibited)
     var first = ConnectionProfile(kind: .pg)
@@ -106,17 +106,20 @@ import ToolCore
       groupHit.mouseDown(with: NSEvent.mouseEvent(with: .leftMouseDown, location: .zero, modifierFlags: [],
         timestamp: 0, windowNumber: 0, context: nil, eventNumber: count, clickCount: count, pressure: 1)!)
     }
+    groupHit.doubleClickUndo = { groupTarget.open() }
     groupClick(1)
+    precondition(groupTarget.opens == 1 && groupTarget.expanded, "Group single click expands synchronously without waiting")
+    precondition(!groupHit.keyboardFocusVisible, "Mouse click does not draw an inner keyboard focus ring")
     groupClick(2)
-    try await Task.sleep(for: .seconds(NSEvent.doubleClickInterval + 0.1))
-    precondition(renames == 1 && groupTarget.opens == 0, "Group double click renames without toggling")
+    precondition(renames == 1 && groupTarget.opens == 2 && !groupTarget.expanded, "Double click restores original expansion then renames")
     groupClick(1)
-    try await Task.sleep(for: .seconds(NSEvent.doubleClickInterval + 0.1))
-    precondition(groupTarget.opens == 1 && renames == 1, "Group single click toggles exactly once")
-    groupClick(1)
+    precondition(groupTarget.opens == 3 && groupTarget.expanded, "Next single click is immediate")
+    groupHit.keyDown(with: NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+      windowNumber: 0, context: nil, characters: "", charactersIgnoringModifiers: "", isARepeat: false, keyCode: 120)!)
+    precondition(renames == 2 && groupTarget.expanded && groupHit.keyboardFocusVisible, "F2 renames without undoing previous click and retains keyboard focus")
     groupHit.isEnabled = false
-    try await Task.sleep(for: .seconds(NSEvent.doubleClickInterval + 0.1))
-    precondition(groupTarget.opens == 1, "Disabled pending group action cannot toggle")
+    groupClick(1)
+    precondition(groupTarget.opens == 3, "Disabled group cannot toggle")
     nav.expand(root)
     precondition(
       table.numberOfRows == 4 && root.children.count == 2, "Database children under one connection")
@@ -274,5 +277,6 @@ import ToolCore
 @MainActor final class GestureTarget: NSObject {
   var opens = 0
   var selections = 0
-  @objc func open() { opens += 1 }
+  var expanded = false
+  @objc func open() { opens += 1; expanded.toggle() }
 }

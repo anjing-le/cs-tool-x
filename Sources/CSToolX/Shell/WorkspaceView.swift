@@ -9,6 +9,7 @@ struct PaperAction<Content: View>: View {
   var onSelect: (() -> Void)? = nil
   var onDisclosure: ((Bool) -> Void)? = nil
   var onDoubleClick: (() -> Void)? = nil
+  var onDoubleClickUndo: (() -> Void)? = nil
   var onFocusChange: ((Bool) -> Void)? = nil
   @ViewBuilder let content: () -> Content
   @State private var hovered = false
@@ -16,7 +17,7 @@ struct PaperAction<Content: View>: View {
     content().allowsHitTesting(false)
       .background(hovered ? Ink.main.opacity(0.055) : .clear, in: RoundedRectangle(cornerRadius: 8))
       .overlay(
-        ActionTarget(label: label, doubleClick: doubleClick, onSelect: onSelect, onDisclosure: onDisclosure, onDoubleClick: onDoubleClick, onFocusChange: onFocusChange, action: action)
+        ActionTarget(label: label, doubleClick: doubleClick, onSelect: onSelect, onDisclosure: onDisclosure, onDoubleClick: onDoubleClick, onDoubleClickUndo: onDoubleClickUndo, onFocusChange: onFocusChange, action: action)
       )
       .onHover { hovered = $0 }
   }

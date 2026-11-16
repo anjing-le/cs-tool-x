@@ -71,12 +71,7 @@ struct ServerSidebar: View {
       PaperAction(
         label: "\(group)：单击展开或收起，双击改名，F2 改名",
         action: {
-          guard !model.searching else { return }
-          if model.collapsed.contains(group) {
-            model.collapsed.remove(group)
-          } else {
-            model.collapsed.insert(group)
-          }
+          toggleGroup(group)
         }, onSelect: {
           model.selectedGroup = group
           model.selectedServerID = nil
@@ -85,6 +80,8 @@ struct ServerSidebar: View {
           if open { model.collapsed.remove(group) } else { model.collapsed.insert(group) }
         }, onDoubleClick: {
           model.sidebarPanel = .group(original: group)
+        }, onDoubleClickUndo: {
+          toggleGroup(group)
         }
       ) {
         HStack(spacing: 6) {
@@ -92,9 +89,6 @@ struct ServerSidebar: View {
           Text(group).font(Font(Theme.font(12, weight: .medium))).lineLimit(1)
           Text("\(count)").font(.system(size: 9)).opacity(0.7)
           Spacer(minLength: 0)
-          if model.selectedGroup == group {
-            Text("✓").foregroundStyle(Ink.sage).accessibilityLabel("已选中")
-          }
         }.foregroundStyle(Ink.muted).padding(.leading, 7).padding(.trailing, 6).frame(height: 30)
       }
       IconAction(icon: "plus", label: "向\(group)新增服务器", visible: hoveredGroup == group) {
@@ -103,10 +97,21 @@ struct ServerSidebar: View {
       IconAction(icon: "ellipsis", label: "管理分组\(group)", visible: hoveredGroup == group) {
         model.sidebarPanel = .groupActions(group)
       }.scaleEffect(0.75).frame(width: 19, height: 25)
+      selectionMark(model.selectedGroup == group)
     }.background(model.selectedGroup == group ? Ink.pale.opacity(0.7) : .clear, in: RoundedRectangle(cornerRadius: 8))
       .onHover { inside in
         if inside { hoveredGroup = group } else if hoveredGroup == group { hoveredGroup = nil }
       }
+  }
+  private func toggleGroup(_ group: String) {
+    guard !model.searching else { return }
+    if model.collapsed.contains(group) { model.collapsed.remove(group) }
+    else { model.collapsed.insert(group) }
+  }
+  private func selectionMark(_ selected: Bool) -> some View {
+    Text("✓").font(Font(Theme.font(12))).foregroundStyle(Ink.sage)
+      .frame(width: 12).padding(.trailing, 7).opacity(selected ? 1 : 0)
+      .accessibilityLabel("已选中").accessibilityHidden(!selected).allowsHitTesting(false)
   }
   private func serverRow(_ server: Server) -> some View {
     let active = model.selectedGroup == nil && (model.selectedServerID ?? model.active?.server.id) == server.id
@@ -127,14 +132,14 @@ struct ServerSidebar: View {
             ).lineLimit(1).truncationMode(.middle) }
           }
           Spacer(minLength: 0)
-          if active { Text("✓").foregroundStyle(Ink.sage).accessibilityLabel("已选中") }
         }.padding(.leading, 10).padding(.trailing, 6).padding(.vertical, 10).help("\(server.user)@\(server.host):\(server.port)")
       }
       IconAction(icon: "ellipsis", label: "管理服务器\(server.name)", visible: hoveredServer == server.id) {
         model.sidebarPanel = .serverActions(server.id)
       }
       .scaleEffect(0.8).frame(width: 24).padding(.trailing, 3)
-    }.background(active ? Ink.pale.opacity(0.7) : .clear, in: RoundedRectangle(cornerRadius: 9))
+      selectionMark(active)
+    }.background(active ? Ink.pale.opacity(0.7) : .clear, in: RoundedRectangle(cornerRadius: 8))
       .onHover { inside in
         if inside { hoveredServer = server.id } else if hoveredServer == server.id { hoveredServer = nil }
       }

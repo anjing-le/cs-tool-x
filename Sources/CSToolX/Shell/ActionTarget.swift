@@ -9,6 +9,7 @@ struct ActionTarget: NSViewRepresentable {
   var onSelect: (() -> Void)? = nil
   var onDisclosure: ((Bool) -> Void)? = nil
   var onDoubleClick: (() -> Void)? = nil
+  var onDoubleClickUndo: (() -> Void)? = nil
   var onFocusChange: ((Bool) -> Void)? = nil
   let action: () -> Void
   func makeCoordinator() -> Coordinator { Coordinator() }
@@ -29,6 +30,7 @@ struct ActionTarget: NSViewRepresentable {
     button.selectionHandler = onSelect
     button.disclosureHandler = onDisclosure
     button.doubleClickHandler = onDoubleClick
+    button.doubleClickUndo = onDoubleClickUndo
     button.focusHandler = onFocusChange
     button.setAccessibilityLabel(label)
     button.toolTip = label
@@ -45,38 +47,41 @@ final class HitButton: NSButton {
   var disclosureHandler: ((Bool) -> Void)?
   var doubleClickHandler: (() -> Void)?
   var focusHandler: ((Bool) -> Void)?
-  private var pendingClick: DispatchWorkItem?
+  var doubleClickUndo: (() -> Void)?
+  private var activatedFirstClick = false
+  private(set) var keyboardFocusVisible = false
   override func becomeFirstResponder() -> Bool {
     let accepted = super.becomeFirstResponder()
-    if accepted { focusHandler?(true) }
+    if accepted {
+      keyboardFocusVisible = NSApp.currentEvent?.type == .keyDown
+      needsDisplay = true
+      focusHandler?(true)
+    }
     return accepted
   }
   override func resignFirstResponder() -> Bool {
     let accepted = super.resignFirstResponder()
-    if accepted { focusHandler?(false) }
+    if accepted { keyboardFocusVisible = false; needsDisplay = true; focusHandler?(false) }
     return accepted
   }
   override func viewWillMove(toWindow newWindow: NSWindow?) {
-    if newWindow == nil { pendingClick?.cancel(); pendingClick = nil }
+    if newWindow == nil { activatedFirstClick = false }
     super.viewWillMove(toWindow: newWindow)
   }
   override func mouseDown(with event: NSEvent) {
     guard isEnabled else { return }
+    keyboardFocusVisible = false
+    needsDisplay = true
     if let doubleClickHandler {
       window?.makeFirstResponder(self)
       selectionHandler?()
-      pendingClick?.cancel()
       if event.clickCount == 2 {
-        pendingClick = nil
+        if activatedFirstClick { doubleClickUndo?() }
+        activatedFirstClick = false
         doubleClickHandler()
       } else if event.clickCount == 1 {
-        let work = DispatchWorkItem { [weak self] in
-          guard let self, isEnabled else { return }
-          pendingClick = nil
-          sendAction(action, to: target)
-        }
-        pendingClick = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + NSEvent.doubleClickInterval, execute: work)
+        activatedFirstClick = true
+        sendAction(action, to: target)
       }
       return
     }
@@ -89,8 +94,9 @@ final class HitButton: NSButton {
     if event.clickCount == 2 { sendAction(action, to: target) }
   }
   override func keyDown(with event: NSEvent) {
-    pendingClick?.cancel()
-    pendingClick = nil
+    activatedFirstClick = false
+    keyboardFocusVisible = true
+    needsDisplay = true
     if isEnabled, event.keyCode == 120, let doubleClickHandler {
       selectionHandler?()
       doubleClickHandler()
@@ -107,7 +113,7 @@ final class HitButton: NSButton {
   override init(frame: NSRect) { super.init(frame: frame) }
   required init?(coder: NSCoder) { nil }
   override func draw(_ dirtyRect: NSRect) {
-    if window?.firstResponder === self {
+    if keyboardFocusVisible && window?.firstResponder === self {
       let path = NSBezierPath(roundedRect: bounds.insetBy(dx: 2, dy: 2), xRadius: 6, yRadius: 6)
       Theme.sage.withAlphaComponent(0.65).setStroke()
       path.lineWidth = 2
