@@ -22,7 +22,6 @@ final class WorkbenchController: NSWindowController {
   private var connectionChoices: [ConnectionGroup] = []
   private var browser: DataBrowser?
   private var browserNodeID: String?
-  private var browseContexts: [UUID: String] = [:]
   private var discoveryProfiles: [String: ConnectionProfile] = [:]
   private var selectedProfile: UUID?
   private var selectedModule: ToolModule?
@@ -35,7 +34,7 @@ final class WorkbenchController: NSWindowController {
   private var connectionSheet: ConnectionSheet?
   private let root = WorkbenchSurface()
   private let body = NSView()
-  private let dataContent = NSView()
+  private let dataContent = DataContentHost()
   private let dataRoot = NSView()
   private var header: NSStackView!
   private var headerHeight: NSLayoutConstraint!
@@ -326,11 +325,10 @@ final class WorkbenchController: NSWindowController {
       guard let self else { return }
       let workspace = installWorkspace(
         profile, id: id, elapsed: elapsed, save: save, authentication: authentication,
-        presents: true)
+        presents: browse == nil)
       connectionSheet = nil
       if let browse, let current = navigator.node(browse.id) {
-        navigator.expand(current, respectingUserCollapse: true)
-        loadTree(current, workspace: workspace)
+        presentNode(current, workspace: workspace, query: false, presents: true)
       }
     }
     window.beginSheet(sheet.window!)
@@ -349,7 +347,6 @@ final class WorkbenchController: NSWindowController {
       selectedConnectionID = ConnectionIdentity(profile).id
     }
     workspace.onInteraction = { [weak self] in self?.openGate.navigate() }
-    workspace.onBrowse = { [weak self] in self?.browseWorkspace(profile) }
     workspace.onDisconnect = { [weak self] in self?.closed(profile.id) }
     if save {
       if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
@@ -384,7 +381,7 @@ final class WorkbenchController: NSWindowController {
   }
   @objc private func connectionActions(_ sender: NSButton) {
     connectionMenu?.dismiss()
-    connectionMenu = PaperMenu(titles: ["新建连接", "编辑连接", "断开当前连接"], anchor: sender) {
+    connectionMenu = PaperMenu(titles: ["新建连接", "新建查询", "刷新目录", "编辑连接", "断开当前连接"], anchor: sender) {
       [weak self] index in
       guard let self else { return }
       if index == 0 {
@@ -394,8 +391,15 @@ final class WorkbenchController: NSWindowController {
       guard let id = selectedConnectionID,
         let group = connectionChoices.first(where: { $0.id == id })
       else { return }
-      if index == 1, let profile = group.profiles.first { showConnection(profile: profile) }
-      if index == 2 {
+      if index == 1 || index == 2 {
+        guard var node = navigator.selectedNode ?? navigator.root(id) else { return }
+        if index == 2, !node.expandable, let parentID = node.parentID, let parent = navigator.node(parentID) {
+          node = parent
+        }
+        openNode(node, query: index == 1, presents: index == 1)
+      }
+      if index == 3, let profile = group.profiles.first { showConnection(profile: profile) }
+      if index == 4 {
         for workspace in dataViews.values where ConnectionIdentity(workspace.profile).id == id {
           workspace.requestDisconnect()
         }
@@ -404,7 +408,6 @@ final class WorkbenchController: NSWindowController {
     connectionMenu?.show()
   }
   private func closed(_ id: UUID) {
-    browseContexts.removeValue(forKey: id)
     let groupID = dataViews[id].map { ConnectionIdentity($0.profile).id }
     dataViews.removeValue(forKey: id)
     if let groupID,
@@ -551,7 +554,7 @@ extension WorkbenchController {
           let visible = request.presents && openGate.isCurrent(request) && selectedModule == .data
           let workspace = installWorkspace(
             profile, id: sessionID, elapsed: elapsed, save: false, authentication: authentication,
-            presents: visible)
+            presents: false)
           presentNode(current, workspace: workspace, query: request.query, presents: visible)
         } catch {
           guard let request = openGate.finish(profile.id),
@@ -574,30 +577,18 @@ extension WorkbenchController {
   ) {
     node.openError = nil
     if presents {
-      selectedProfile = workspace.profile.id
       selectedConnectionID = node.groupID
-      if query { workspace.showQuery() }
-      display(workspace, in: dataContent)
+      if query || [.table, .index, .key].contains(node.kind) {
+        selectedProfile = workspace.profile.id
+        if query { workspace.showQuery() }
+        display(workspace, in: dataContent)
+      } else {
+        showTreeOverview(node)
+      }
     }
     if !query {
       if node.expandable { navigator.expand(node, respectingUserCollapse: true) }
       loadTree(node, workspace: workspace, presents: presents)
-    }
-  }
-  private func browseWorkspace(_ profile: ConnectionProfile) {
-    if let id = browseContexts[profile.id], let node = navigator.node(id) {
-      navigator.expand(node)
-      showTreeOverview(node)
-      return
-    }
-    let rootID = ConnectionIdentity(profile).id
-    guard let root = navigator.root(rootID) else { return }
-    if profile.kind == .es {
-      activateTreeNode(root)
-      return
-    }
-    if let node = root.children.first(where: { $0.profile?.database == profile.database }) {
-      activateTreeNode(node)
     }
   }
   private func showTreeOverview(_ node: DataTreeNode) {
@@ -606,16 +597,6 @@ extension WorkbenchController {
       browserNodeID = node.id
     }
     guard let browser else { return }
-    browser.onOpen = { [weak self] child in self?.activateTreeNode(child) }
-    browser.onRefresh = { [weak self, weak node] in
-      guard let node else { return }
-      self?.activateTreeNode(node)
-    }
-    browser.onBack = { [weak self, weak node] in
-      guard let self, let id = node?.parentID, let parent = navigator.node(id) else { return }
-      openGate.navigate()
-      showTreeOverview(parent)
-    }
     browser.onQuery = { [weak self, weak node] in
       guard let node else { return }
       self?.openNode(node, query: true)
@@ -628,7 +609,7 @@ extension WorkbenchController {
       current = parent
     }
     browser.update(node, breadcrumb: names.joined(separator: " / "))
-    display(browser, in: dataContent)
+    dataContent.showDirectory(browser)
   }
   private func refreshBrowser(_ node: DataTreeNode) {
     if browserNodeID == node.id, let browser,
@@ -703,7 +684,6 @@ extension WorkbenchController {
       Theme.error(ToolError.message("目录缓存已达 5000 项，请断开不用的连接后重试。"), window: window)
       return
     }
-    browseContexts[profile.id] = node.id
     node.loading = true
     navigator.changed(node)
     if presents { showTreeOverview(node) }

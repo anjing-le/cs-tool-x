@@ -177,6 +177,9 @@ final class DataNavigator: NSObject, NSTableViewDataSource, NSTableViewDelegate 
     }
     return find(roots)
   }
+  var selectedNode: DataTreeNode? {
+    visible.indices.contains(table.selectedRow) ? visible[table.selectedRow].node : nil
+  }
   func root(_ id: String) -> DataTreeNode? { roots.first { $0.id == id } }
   func isCurrent(_ node: DataTreeNode) -> Bool {
     func contains(_ nodes: [DataTreeNode]) -> Bool {

@@ -24,7 +24,6 @@ final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
   private let results = TextTable()
   private var output: QueryOutput?
   private var runButton: NSButton!
-  private var catalogButton: NSButton!
   private var nextButton: NSButton!
   private var disconnectButton: NSButton!
   private var historyButton: NSButton!
@@ -33,7 +32,6 @@ final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
   private(set) var busy = false
   var onInteraction: (() -> Void)?
   func textDidChange(_ notification: Notification) { onInteraction?() }
-  var onBrowse: (() -> Void)?
   var onDisconnect: (() -> Void)?
 
   init(profile: ConnectionProfile, sessionID: String, elapsed: Int, engine: EngineClient) {
@@ -61,19 +59,18 @@ final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
     editor.setAccessibilityLabel(profile.kind == .redis ? "Redis key 模式" : "查询编辑器")
     disconnectButton = Theme.button("断开", target: self, action: #selector(disconnect))
     toolTip = profile.displayName + " · " + profile.address + " · " + profile.environment
-    catalogButton = PaperIconButton(symbol: "list.bullet", label: "返回目录", target: self, action: #selector(catalog))
     historyButton = PaperIconButton(symbol: "clock", label: "本次查询历史", target: self, action: #selector(showHistory))
     runButton = Theme.button("执行", target: self, action: #selector(run), primary: true)
     runButton.keyEquivalent = "\r"
     runButton.keyEquivalentModifierMask = [.command]
-    browseButton = Theme.button("浏览", target: self, action: #selector(selectBrowse)) as? PaperButton
+    browseButton = Theme.button("数据", target: self, action: #selector(selectBrowse)) as? PaperButton
     queryButton = Theme.button("查询", target: self, action: #selector(selectQuery)) as? PaperButton
     context.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     context.stringValue = profile.kind == .es ? "选择索引" : profile.database
     let environment = Theme.label(profile.environment, size: 10, muted: true)
     environment.isHidden = profile.environment.isEmpty
     let toolbar = Theme.stack(
-      [catalogButton, browseButton, queryButton, context, NSView(), environment, historyButton, runButton],
+      [browseButton, queryButton, context, NSView(), environment, historyButton, runButton],
       vertical: false, spacing: 8)
     toolbar.detachesHiddenViews = true
     targetField.isHidden = profile.kind != .es
@@ -119,7 +116,6 @@ final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
       ? ns.substring(with: range) : editor.string
     perform(action: "query", text: text)
   }
-  @objc private func catalog() { onBrowse?() }
   @objc private func nextBatch() {
     guard let cursor = output?.nextCursor, cursor != "0" else { return }
     perform(action: "query", text: editor.string, cursor: cursor)
@@ -158,7 +154,7 @@ final class DataWorkspace: NSView, NSTextFieldDelegate, NSTextViewDelegate {
   private func setBusy(_ value: Bool) {
     busy = value
     for button in [
-      runButton, catalogButton, nextButton, disconnectButton, historyButton, browseButton,
+      runButton, nextButton, disconnectButton, historyButton, browseButton,
       queryButton,
     ] {
       button?.isEnabled = !value

@@ -167,31 +167,33 @@ import ToolCore
     }
     let objectBrowser = DataBrowser(frame: NSRect(x: 0, y: 0, width: 650, height: 700))
     objectBrowser.update(nav.roots[0], breadcrumb: "fixture")
-    let objectTable = descendants(objectBrowser).compactMap { $0 as? NSTableView }.first!
-    precondition(objectTable.numberOfRows == 2, "Object browser contains database children")
-    let filter = descendants(objectBrowser).compactMap { $0 as? NSTextField }.first {
-      $0.isEditable
-    }!
-    filter.stringValue = "two"
-    objectBrowser.controlTextDidChange(Notification(name: NSControl.textDidChangeNotification))
-    precondition(objectTable.numberOfRows == 1, "Object browser filters only loaded children")
+    precondition(!descendants(objectBrowser).contains { $0 is NSTableView }, "Directory context must not duplicate sidebar objects")
+    precondition(!descendants(objectBrowser).contains { ($0 as? NSTextField)?.isEditable == true }, "Directory context has no duplicate result filter")
     var queryRequested = false
     objectBrowser.onQuery = { queryRequested = true }
     descendants(objectBrowser).compactMap { $0 as? NSButton }.first { $0.title == "查询" }!
       .performClick(nil)
-    precondition(queryRequested, "Browse and query have separate actions")
+    precondition(queryRequested, "Directory context provides query entry")
     let workspace = DataWorkspace(
       profile: first, sessionID: "offscreen", elapsed: 0,
       engine: EngineClient(executable: URL(fileURLWithPath: "/missing/test-engine")))
     let editor = descendants(workspace).compactMap { $0 as? NSTextView }.first!
     editor.string = "SELECT 42 AS draft"
-    descendants(workspace).compactMap { $0 as? NSButton }.first { $0.title == "浏览" }!.performClick(
+    descendants(workspace).compactMap { $0 as? NSButton }.first { $0.title == "数据" }!.performClick(
       nil)
     precondition(!workspace.queryMode, "Browse mode hides query controls")
     workspace.showQuery()
     precondition(
       workspace.queryMode && editor.string == "SELECT 42 AS draft",
       "Returning to query preserves its draft")
+    let content = DataContentHost(frame: NSRect(x: 0, y: 0, width: 650, height: 700))
+    content.showDirectory(objectBrowser)
+    precondition(content.subviews.first === objectBrowser, "Initial directory context has no data list")
+    objectBrowser.removeFromSuperview()
+    Theme.pin(workspace, to: content)
+    content.showDirectory(DataBrowser(frame: .zero))
+    precondition(content.subviews.count == 1 && content.subviews.first === workspace && editor.string == "SELECT 42 AS draft",
+      "Expanding another directory preserves the visible query and draft")
     let budgetNode = nav.roots[0].children[0]
     budgetNode.children = (0..<5001).map {
       DataTreeNode(
