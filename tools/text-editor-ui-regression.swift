@@ -31,6 +31,14 @@ import WebKit
     workspace.togglePreview()
     precondition(!workspace.showingPreview && text.hasMarkedText(), "Preview cannot interrupt IME")
     text.unmarkText()
+    let imeStatisticsDeadline = Date().addingTimeInterval(10)
+    while !workspace.statistics.isCurrent {
+      precondition(Date() < imeStatisticsDeadline)
+      try await Task.sleep(nanoseconds: 10_000_000)
+    }
+    let imeExpected = try TextStatisticsIndex(text.string).snapshot
+    precondition(
+      workspace.statistics.snapshot == imeExpected, "IME edits must reach the statistics index")
     let source = "# 标题\n\n**正文** 和 `code`\n\n- one\n- two\n"
     writing.replace(source, bytes: source.utf8.count)
     text.setSelectedRange(NSRange(location: 2, length: 2))
@@ -64,6 +72,32 @@ import WebKit
       rendered, "Actual WebKit document must render Markdown content, not just create a view")
     workspace.showEditor()
     precondition(text.string == source && text.selectedRange() == selection)
+    func statsReady() async throws {
+      let deadline = Date().addingTimeInterval(15)
+      while !workspace.statistics.isCurrent {
+        precondition(Date() < deadline, "Statistics must catch up")
+        try await Task.sleep(nanoseconds: 10_000_000)
+      }
+    }
+    try await statsReady()
+    let expectedStatistics = try TextStatisticsIndex(source).snapshot
+    precondition(workspace.statistics.snapshot == expectedStatistics)
+    text.undoManager?.beginUndoGrouping()
+    text.insertText("你好", replacementRange: NSRange(location: 0, length: 0))
+    text.undoManager?.endUndoGrouping()
+    try await statsReady()
+    precondition(workspace.statistics.snapshot?.han == expectedStatistics.han + 2)
+    text.undoManager?.undo()
+    try await statsReady()
+    precondition(workspace.statistics.snapshot == expectedStatistics)
+    text.setSelectedRange(NSRange(location: 2, length: 2))
+    let selectedDeadline = Date().addingTimeInterval(5)
+    while workspace.statistics.selected == nil {
+      precondition(Date() < selectedDeadline)
+      try await Task.sleep(nanoseconds: 20_000_000)
+    }
+    precondition(
+      workspace.statistics.selected?.han == 2 && workspace.statistics.selected?.characters == 2)
     var times: [Double] = []
     // Two different stressors: many lines, and one very long line. No user text or clipboard.
     for (name, value) in [
@@ -112,9 +146,11 @@ import WebKit
     precondition(
       !writing.replace(String(repeating: "x", count: 8 * 1024 * 1024), bytes: 8 * 1024 * 1024),
       "Reject pathological long lines before replacing source")
-    writing.replace(source, bytes: source.utf8.count)
     workspace.pause()
+    writing.replace(source, bytes: source.utf8.count)
     precondition(text.string == source)
+    workspace.activate()
+    try await statsReady()
     if CommandLine.arguments.count > 2 {
       workspace.layoutSubtreeIfNeeded()
       let rep = workspace.bitmapImageRepForCachingDisplay(in: workspace.bounds)!
@@ -123,7 +159,7 @@ import WebKit
         to: URL(fileURLWithPath: CommandLine.arguments[2]))
     }
     print(
-      "PASS: native Unicode/undo/redo/IME, preview roundtrip, large line/multiline editing, source-preserving budgets and module pause; offscreen component checks"
+      "PASS: native Unicode/undo/redo/IME, live statistics/selection, preview roundtrip, large line/multiline editing, source-preserving budgets and module pause; offscreen component checks"
     )
   }
 }

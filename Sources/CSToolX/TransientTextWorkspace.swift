@@ -4,6 +4,8 @@ import WebKit
 
 @MainActor final class TransientTextWorkspace: NSView, WKNavigationDelegate {
   let writing = TransientTextEditor()
+  let statistics = TextStatisticsModel()
+  private let statisticsFooter = TextStatisticsFooter(frame: .zero)
   var workerURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/cs-tool-markdown")
   var hasPendingWork: Bool { work != nil }
   var previewView: WKWebView? { web }
@@ -69,12 +71,32 @@ import WebKit
     let footer = Theme.stack([status, confirmation], vertical: false, spacing: 12)
     status.setContentHuggingPriority(.init(1), for: .horizontal)
     status.toolTip = "仅在本次运行内保留，不保存、不自动恢复；纯文本 32 MiB、单行 128 KiB，Markdown 完整预览 4 MiB"
-    let root = Theme.stack([toolbar, content, footer], spacing: 8)
+    let root = Theme.stack([toolbar, content, statisticsFooter, footer], spacing: 8)
     Theme.pin(root, to: self, inset: 16)
     for view in root.arrangedSubviews {
       view.widthAnchor.constraint(equalTo: root.widthAnchor).isActive = true
     }
     Theme.pin(writing, to: content)
+    statistics.source = { [weak self] in
+      guard let self else { return ("", 0) }
+      return (self.writing.editor.string, self.writing.revision)
+    }
+    statistics.selection = { [weak self] in
+      guard let self, !self.showingPreview, !self.writing.editor.hasMarkedText() else {
+        return ([], -1)
+      }
+      return (self.writing.editor.selectedRanges.map(\.rangeValue), self.writing.revision)
+    }
+    statistics.changed = { [weak self] value, selected, updating in
+      self?.statisticsFooter.render(value, selected: selected, updating: updating)
+    }
+    writing.statisticsReset = { [weak self] text, revision in
+      self?.statistics.reset(text, revision: revision)
+    }
+    writing.statisticsEdited = { [weak self] range, text, before, revision in
+      self?.statistics.edit(range, replacement: text, before: before, revision: revision)
+    }
+    writing.selectionChanged = { [weak self] in self?.statistics.refreshSelection() }
     writing.editor.togglePreview = { [weak self] in self?.togglePreview() }
     writing.changed = { [weak self] in
       guard let self else { return }
@@ -88,6 +110,7 @@ import WebKit
   }
   required init?(coder: NSCoder) { nil }
   func activate() {
+    statistics.resume()
     writing.editor.isEditable = !showingPreview
     if showingPreview {
       window?.makeFirstResponder(web)
@@ -96,6 +119,7 @@ import WebKit
     }
   }
   func pause() {
+    statistics.suspend()
     if let responder = window?.firstResponder as? NSView, responder.isDescendant(of: self) {
       window?.makeFirstResponder(nil)
     }
@@ -113,9 +137,7 @@ import WebKit
     status.toolTip = text
   }
   private func updateStatus() {
-    let size = ByteCountFormatter.string(
-      fromByteCount: Int64(writing.byteCount), countStyle: .binary)
-    message("临时 · \(size)" + (showingPreview ? " · 图片不加载" : " · 退出后清空"))
+    message("临时" + (showingPreview ? " · 图片不加载" : " · 退出后清空"))
   }
   @objc func showEditor() {
     generation += 1
@@ -123,6 +145,7 @@ import WebKit
     work = nil
     cancelButton.isHidden = true
     showingPreview = false
+    statistics.refreshSelection()
     writing.isHidden = false
     writing.editor.isEditable = true
     web?.isHidden = true
@@ -156,6 +179,7 @@ import WebKit
     let token = generation
     let revision = writing.revision
     showingPreview = true
+    statistics.refreshSelection()
     editButton.primary = false
     previewButton.primary = true
     fontChoice.isEnabled = false

@@ -13,8 +13,12 @@ struct TextCommands: AsyncParsableCommand {
     func run() async throws {
       let text = try await TextWorkbench.importText(
         URL(fileURLWithPath: file), executable: options.markdownURL)
+      let statistics = try await Task.detached(priority: .userInitiated) {
+        try TextStatisticsIndex(text).snapshot
+      }.value
       try emit(
         .object([
+          "statistics": try value(statistics),
           "encoding": .string("UTF-8"), "bytes": .number(Decimal(text.utf8.count)),
           "utf16Units": .number(Decimal((text as NSString).length)),
           "markdownPreviewWithinByteBudget": .bool(text.utf8.count <= TextWorkbench.previewBytes),

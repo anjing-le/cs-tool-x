@@ -8,6 +8,10 @@ import ToolCore
   private(set) var byteCount = 0
   private(set) var revision = 0
   var changed: (() -> Void)?
+  var statisticsReset: ((String, Int) -> Void)?
+  var statisticsEdited: ((NSRange, String, Int, Int) -> Void)?
+  var selectionChanged: (() -> Void)?
+  private var pendingStatisticsEdit: (NSRange, String, Int)?
   var rejected: ((String) -> Void)?
   var largeModeActivated: (() -> Void)?
   var paper = true { didSet { applyTypography() } }
@@ -99,6 +103,7 @@ import ToolCore
     }
     editor.unmarkText()
     editor.ink.clear()
+    pendingStatisticsEdit = nil
     byteCount = bytes
     revision += 1
     editor.undoManager?.levelsOfUndo = bytes > 2 * 1024 * 1024 ? 20 : 100
@@ -106,6 +111,7 @@ import ToolCore
     editor.undoManager?.removeAllActions()
     editor.setSelectedRange(NSRange(location: 0, length: 0))
     editor.scrollToBeginningOfDocument(nil)
+    statisticsReset?(text, revision)
     changed?()
     return true
   }
@@ -144,13 +150,22 @@ import ToolCore
       }
     }
     byteCount = max(0, next)
+    pendingStatisticsEdit = (range, replacementString, revision)
     editor.ink.followEdit(range, length: (replacementString as NSString).length)
     return true
   }
   func textDidChange(_ notification: Notification) {
+    let before = revision
     revision += 1
+    if let edit = pendingStatisticsEdit, edit.2 == before {
+      statisticsEdited?(edit.0, edit.1, before, revision)
+    } else {
+      statisticsReset?(editor.string, revision)
+    }
+    pendingStatisticsEdit = nil
     changed?()
   }
+  func textViewDidChangeSelection(_ notification: Notification) { selectionChanged?() }
   func pause() { editor.ink.clear() }
 }
 

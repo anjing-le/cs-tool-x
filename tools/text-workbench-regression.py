@@ -19,6 +19,8 @@ with tempfile.TemporaryDirectory() as d:
     result=subprocess.run([binary,'text','inspect',str(path)],capture_output=True,text=True,timeout=20)
     body=json.loads(result.stdout);assert result.returncode==0 and body['ok']
     assert body['result']['bytes']==len(original) and path.read_bytes()==original
+    assert body['result']['statistics']['han']==2*1024*256
+    assert body['result']['statistics']['englishWords']==1024*256
     path.write_text(source)
     result=subprocess.run([binary,'text','preview',str(path)],capture_output=True,text=True,timeout=12)
     body=json.loads(result.stdout);assert body['ok'] and 'default-src \'none\'' in body['result']['html']
