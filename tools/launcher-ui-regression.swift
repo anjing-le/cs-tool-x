@@ -9,7 +9,7 @@ import ToolCore
     let directory = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Resources/Entrances")
     let artwork = LauncherArtwork(directory: directory)
     await artwork.load()
-    precondition(artwork.images.count == 4, "All four entrance resources decode")
+    precondition(artwork.images.count == 5, "All five entrance resources decode")
     precondition(artwork.images.values.allSatisfy { max($0.width, $0.height) <= 1536 }, "Decoded image budget remains bounded")
     let cache = artwork.images["shell"]!
     await artwork.load()
@@ -28,7 +28,7 @@ import ToolCore
         try rep.representation(using: .png, properties: [:])!.write(to: path)
       }
       // No white or transparent gutters around either row.
-      for fx in [0.002, 0.332, 0.334, 0.665, 0.668, 0.998] {
+      for fx in [0.002, 0.249, 0.251, 0.499, 0.501, 0.749, 0.751, 0.998] {
         for fy in [0.002, 0.5, 0.998] {
           let color = rep.colorAt(x: Int(Double(rep.pixelsWide - 1) * fx), y: Int(Double(rep.pixelsHigh - 1) * fy))!.usingColorSpace(.sRGB)!
           precondition(color.alphaComponent > 0.99, "No transparent panel gap")
@@ -36,6 +36,6 @@ import ToolCore
         }
       }
     }
-    print("PASS: three upper entrances at 60% and one full-width toolbox entrance at 40% at minimum, standard and wide sizes; four bounded cached illustrations; no white gutters. Offscreen rendering, not installed-window automation.")
+    print("PASS: four independent upper entrances with responsive height and one full-width toolbox entrance at minimum, standard and wide sizes; five bounded cached illustrations; no white gutters. Offscreen rendering, not installed-window automation.")
   }
 }

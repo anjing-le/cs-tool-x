@@ -3,7 +3,6 @@ import SwiftUI
 import ToolCore
 
 @MainActor final class ToolboxWorkspace: NSView {
-  private var textWorkspace: TransientTextWorkspace?
   private var task: Task<Void, Never>?
   private var generation = 0
   private var item: ToolboxItem?
@@ -22,7 +21,6 @@ import ToolCore
   }
   required init?(coder: NSCoder) { nil }
   func pause() {
-    textWorkspace?.pause()
     generation += 1
     task?.cancel()
     task = nil
@@ -38,7 +36,6 @@ import ToolCore
     Theme.pin(grid, to: self)
   }
   func open(_ item: ToolboxItem) {
-    if item.id == "text-workbench" { openText(); return }
     pause()
     self.item = item
     file = nil
@@ -125,11 +122,6 @@ import ToolCore
     Theme.pin(column, to: self, inset: 26)
     modeChanged()
     window?.makeFirstResponder(item.id == "random" ? length : source.text)
-  }
-  private func openText() {
-    pause(); item = nil; subviews.forEach { $0.removeFromSuperview() }
-    if textWorkspace == nil { textWorkspace = TransientTextWorkspace(frame: .zero); textWorkspace?.back = { [weak self] in self?.showGrid() } }
-    Theme.pin(textWorkspace!, to: self); textWorkspace?.activate()
   }
   private var selectedMode: String {
     guard let item else { return "" }
@@ -278,7 +270,7 @@ import ToolCore
 }
 
 @MainActor private struct ToolboxGrid: View {
-  private let entries = [ToolboxItem(id: "text-workbench", name: "临时文本", glyph: "✎", modes: [])] + Toolbox.items
+  private let entries = Toolbox.items
   let open: (ToolboxItem) -> Void
   var body: some View {
     GeometryReader { geometry in

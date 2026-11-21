@@ -23,13 +23,10 @@ import WebKit
   private var cachedHTML: String?
   private var cachedRevision = -1
   private(set) var showingPreview = false
-  var back: (() -> Void)?
   override init(frame: NSRect) {
     super.init(frame: frame)
     wantsLayer = true
     layer?.backgroundColor = Theme.paper.cgColor
-    let grid = PaperIconButton(
-      symbol: "square.grid.2x2", label: "返回百宝箱", target: self, action: #selector(backToTools))
     let fresh = PaperIconButton(
       symbol: "square.and.pencil", label: "清空临时文本", target: self, action: #selector(newText))
     let read = PaperIconButton(
@@ -59,7 +56,7 @@ import WebKit
     spacer.setContentHuggingPriority(.init(1), for: .horizontal)
     let toolbar = Theme.stack(
       [
-        grid, fresh, read, NSView(), editButton, previewButton, spacer, fontChoice, wrapButton,
+        fresh, read, NSView(), editButton, previewButton, spacer, fontChoice, wrapButton,
         cancelButton,
       ], vertical: false, spacing: 14)
     let yes = Theme.button("替换", target: self, action: #selector(confirmReplace), primary: true)
@@ -110,10 +107,6 @@ import WebKit
     cancelButton.isHidden = true
     if showingPreview, cachedHTML == nil { showEditor() }
     clearConfirmation()
-  }
-  @objc private func backToTools() {
-    pause()
-    back?()
   }
   private func message(_ text: String) {
     status.stringValue = text

@@ -57,7 +57,7 @@ def main():
     for resource in (ROOT/'Resources').iterdir():
         if resource.is_file(): shutil.copy2(resource,contents/'Resources'/resource.name)
     entrances=ROOT/'Resources/Entrances'
-    if not all((entrances/(name+'.png')).is_file() for name in ('shell','data','git','toolbox')): raise ValueError('Missing launcher artwork.')
+    if not all((entrances/(name+'.png')).is_file() for name in ('shell','data','git','text','toolbox')): raise ValueError('Missing launcher artwork.')
     shutil.copytree(entrances,contents/'Resources/Entrances')
     # Keep the raw PNG alpha for NSApplication.applicationIconImage at launch.
     shutil.copy2(ROOT/'assets/AppIcon.png',contents/'Resources/DockIcon.png')

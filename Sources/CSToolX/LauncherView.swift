@@ -17,7 +17,7 @@ import ToolCore
       let directory = directory
       loading = Task.detached(priority: .userInitiated) {
         var result: [String: CGImage] = [:]
-        for key in ["shell", "data", "git", "toolbox"] {
+        for key in ["shell", "data", "git", "text", "toolbox"] {
           guard let url = directory?.appendingPathComponent(key + ".png"),
             let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 8 * 1024 * 1024,
             let source = CGImageSourceCreateWithURL(url as CFURL, nil),
@@ -51,13 +51,14 @@ import ToolCore
   }
   var body: some View {
     GeometryReader { geometry in
-      let upperHeight: CGFloat = geometry.size.height * 0.6
+      let upperHeight: CGFloat = min(geometry.size.height * 0.6, geometry.size.width / 4 / 0.72)
       let upperSize = CGSize(width: geometry.size.width, height: upperHeight)
       VStack(spacing: 0) {
         HStack(spacing: 0) {
           entrance("shell", name: "Shell", label: "Shell：终端与文件传输", color: Color(red: 0.96, green: 0.82, blue: 0.55), module: .terminal, size: upperSize)
           entrance("data", name: "数据", label: "数据：MySQL、PostgreSQL、Redis 与 Elasticsearch", color: Color(red: 0.75, green: 0.83, blue: 0.86), module: .data, size: upperSize)
           entrance("git", name: "Git", label: "Git：仓库、分支与提交历史", color: Color(red: 0.75, green: 0.80, blue: 0.61), module: .git, size: upperSize)
+          entrance("text", name: "临时文本", label: "临时文本：写作与 Markdown 预览", color: Color(red: 0.91, green: 0.81, blue: 0.75), module: .text, size: upperSize)
         }
         IllustratedEntrance(name: "百宝箱", label: "百宝箱：离线小工具", image: artwork.images["toolbox"], color: Color(red: 0.90, green: 0.92, blue: 0.86)) { enter(.utilities) }
           .frame(width: geometry.size.width, height: max(0, geometry.size.height - upperHeight)).clipped()
@@ -74,7 +75,7 @@ import ToolCore
   private func entrance(_ key: String, name: String, label: String, color: Color, module: ToolModule, size: CGSize) -> some View {
     IllustratedEntrance(name: name, label: label, image: artwork.images[key], color: color) {
       enter(module)
-    }.frame(width: size.width / 3, height: size.height).clipped()
+    }.frame(width: size.width / 4, height: size.height).clipped()
   }
 }
 

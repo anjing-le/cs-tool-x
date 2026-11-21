@@ -41,5 +41,13 @@ Recompose the provided crayon illustration for a SQUARE 1:1 app entrance tile. K
 
 Edit this square wax-crayon artwork ONLY to reduce the complete object group's scale, preserving every object, texture, palette, ratios and silhouette. All objects INCLUDING table legs, leaves, server, books and pencils must fit INSIDE the central 65% WIDTH and central 65% HEIGHT of the square. Center the whole group horizontally AND vertically. Outer 17.5% on EVERY side must be ONLY the same continuous colored crayon paper; no objects at edges. This is a responsive UI safe area requirement: it must tolerate cropping 15% on any edge without touching a single object. No people/animals/characters/logos/extra text, no border, no white, keep full bleed original colored paper with real grain. SQUARE 1:1 output.
 
-资源：Resources/Entrances/{shell,data,git,toolbox}.png。
+资源：Resources/Entrances/{shell,data,git,text,toolbox}.png。
+
+## 0.0.30 临时文本独立入口
+
+内置 imagegen，以 data.png 仅作笔触/配色参考，生成 text.png，不复用其数据库主体。上排为四个等宽独立入口（Shell、数据、Git、临时文本）；高度不超过窗口 60%，窄窗以卡片宽高比不低于 0.72 收紧高度。主体中心安全区保留，下面整行百宝箱。
+
+提示词：
+
+Create ONE original SQUARE 1:1 wax-crayon and colored-pencil illustration for a quiet macOS temporary text / Markdown writing workspace entrance. The provided image is a STYLE REFERENCE ONLY: match its softly grainy colored paper, handmade graphite-brown contours, restrained muted ochre/sage/dusty-blue objects and gentle flat lighting. Do not copy its database cylinders, archive cabinet or magnifier. New subject: a small open cream notebook with a few abstract handwriting strokes, a sage-green fountain pen diagonally beside it, a single loose page with tiny abstract heading/paragraph/code-like marks, and a modest ochre paper clip. NO readable words, no labels, no computer UI. Whole object group centered both horizontally and vertically, entirely within CENTRAL 60% WIDTH and CENTRAL 60% HEIGHT, outer 20% on EVERY edge is only continuous softly textured pale dusty-peach paper. Preserve all notebook corners and full pen silhouette. The safe margin is essential because narrow entrance tiles crop background. Full bleed colored paper to every edge; NO white border, frame, card, rounded rectangle, glow or cast shadow. NO characters, humans, animals, mascots, franchise elements, brand logos or watermark. Calm, lightweight, youthful and understated, consistent with a hand-drawn developer workbench.
 

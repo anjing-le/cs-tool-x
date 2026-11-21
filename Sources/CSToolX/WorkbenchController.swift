@@ -29,6 +29,7 @@ final class WorkbenchController: NSWindowController {
   private var shellHost: NSHostingView<WorkspaceView>?
   private var gitView: GitWorkspace?
   private var toolboxView: ToolboxWorkspace?
+  private var textWorkspace: TransientTextWorkspace?
   private var fileView: TerminalWorkspace?
   private var sftpSheet: NSWindow?
   private var homeHost: NSHostingView<LauncherView>?
@@ -154,6 +155,7 @@ final class WorkbenchController: NSWindowController {
   @objc func goHome() {
     gitView?.pause()
     toolboxView?.pause()
+    textWorkspace?.pause()
     openGate.navigate()
     selectedModule = nil
     header.isHidden = true
@@ -166,6 +168,7 @@ final class WorkbenchController: NSWindowController {
   private func showModule(_ module: ToolModule) {
     if module != .git { gitView?.pause() }
     if module != .utilities { toolboxView?.pause() }
+    if module != .text { textWorkspace?.pause() }
     openGate.navigate()
     selectedModule = module
     header.isHidden = false
@@ -194,6 +197,10 @@ final class WorkbenchController: NSWindowController {
       if gitView == nil { gitView = GitWorkspace(frame: .zero) }
       display(gitView!, in: body)
       gitView?.activate()
+    case .text:
+      if textWorkspace == nil { textWorkspace = TransientTextWorkspace(frame: .zero) }
+      display(textWorkspace!, in: body)
+      textWorkspace?.activate()
     case .utilities:
       if toolboxView == nil { toolboxView = ToolboxWorkspace(frame: .zero) }
       display(toolboxView!, in: body)
@@ -469,6 +476,7 @@ final class WorkbenchController: NSWindowController {
   func stopAll() {
     gitView?.stop()
     toolboxView?.pause()
+    textWorkspace?.pause()
     openTasks.values.forEach { $0.cancel() }
     openTasks.removeAll()
     openGate.clear()
