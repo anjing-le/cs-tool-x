@@ -3,6 +3,17 @@ import AppKit
 /// The same borderless native window pattern used by FinanceX / EnglishX.
 final class WorkbenchWindow: NSWindow {
   private var restoredFrame: NSRect?
+  var onNavigate: ((Bool) -> Bool)?
+  override func performKeyEquivalent(with event: NSEvent) -> Bool {
+    let flags = event.modifierFlags.intersection([.command, .control, .option, .shift])
+    if flags == .command, event.keyCode == 33 || event.keyCode == 30,
+      let onNavigate
+    {
+      if event.isARepeat { return true }
+      if onNavigate(event.keyCode == 30) { return true }
+    }
+    return super.performKeyEquivalent(with: event)
+  }
   init(contentRect: NSRect) {
     super.init(
       contentRect: contentRect, styleMask: [.borderless, .closable, .miniaturizable, .resizable],
@@ -15,6 +26,15 @@ final class WorkbenchWindow: NSWindow {
     collectionBehavior.insert(.fullScreenPrimary)
   }
   override func sendEvent(_ event: NSEvent) {
+    if attachedSheet == nil, NSApp.modalWindow == nil,
+      event.type == .otherMouseDown || event.type == .otherMouseUp,
+      event.buttonNumber == 3 || event.buttonNumber == 4,
+      let onNavigate
+    {
+      // Consume the pair; one navigation on release, scoped to this window only.
+      if event.type == .otherMouseDown { return }
+      if onNavigate(event.buttonNumber == 4) { return }
+    }
     super.sendEvent(event)
     if event.type == .cursorUpdate || event.type == .leftMouseUp {
       WritingCursors.update(in: self, at: event.locationInWindow)
@@ -61,7 +81,7 @@ final class WorkbenchSurface: NSView {
   func installDragRegion() { addSubview(dragRegion, positioned: .above, relativeTo: nil) }
   override func layout() {
     super.layout()
-    dragRegion.frame = NSRect(x: 100, y: 0, width: max(0, bounds.width - 200), height: 28)
+    dragRegion.frame = NSRect(x: 148, y: 0, width: max(0, bounds.width - 248), height: 28)
   }
 }
 final class WorkbenchDragRegion: NSView, WritingCursorProviding {

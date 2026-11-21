@@ -2,7 +2,7 @@ import AppKit
 import ToolCore
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
   private var workbench: WorkbenchController?
   private var keyMonitor: Any?
   private var cursorCoordinator: CursorEventCoordinator?
@@ -50,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     menu.addItem(navigation)
     navigation.submenu = NSMenu(title: "工作区")
     for (name, action, key, mods) in [
+      ("后退", #selector(back), "[", NSEvent.ModifierFlags.command),
+      ("前进", #selector(forward), "]", NSEvent.ModifierFlags.command),
       ("首页", #selector(home), "1", NSEvent.ModifierFlags.command),
       ("新建终端标签", #selector(newTab), "t", .command),
       ("关闭标签或窗口", #selector(closeTab), "w", .command),
@@ -74,6 +76,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
       else { return event }
       let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
       if flags == .command {
+        if event.keyCode == 33 || event.keyCode == 30 {
+          if let editor = window.firstResponder as? NSTextView, editor.hasMarkedText() {
+            return event
+          }
+          if !event.isARepeat {
+            if event.keyCode == 33 { self.workbench?.goBack() } else { self.workbench?.goForward() }
+          }
+          return nil
+        }
         if event.keyCode == 13 {
           self.workbench?.closeShellTab()
           return nil
@@ -107,6 +118,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   func applicationDidBecomeActive(_ notification: Notification) { workbench?.reloadConfiguration() }
   @objc private func home() { workbench?.goHome() }
   @objc private func newTab() { workbench?.newShellTab() }
+  func validateMenuItem(_ item: NSMenuItem) -> Bool {
+    if item.action == #selector(back) {
+      return NSApp.keyWindow === workbench?.window && workbench?.canGoBack == true
+    }
+    if item.action == #selector(forward) {
+      return NSApp.keyWindow === workbench?.window && workbench?.canGoForward == true
+    }
+    return true
+  }
+  @objc private func back() { workbench?.goBack() }
+  @objc private func forward() { workbench?.goForward() }
   @objc private func closeTab() { workbench?.closeShellTab() }
   @objc private func splitHorizontal() { workbench?.splitShell(vertical: false) }
   @objc private func splitVertical() { workbench?.splitShell(vertical: true) }

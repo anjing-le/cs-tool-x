@@ -3,6 +3,8 @@ import SwiftUI
 import ToolCore
 
 @MainActor final class ToolboxWorkspace: NSView {
+  var onOpen: ((ToolboxItem) -> Void)?
+  var onGrid: (() -> Void)?
   private var task: Task<Void, Never>?
   private var generation = 0
   private var item: ToolboxItem?
@@ -32,7 +34,11 @@ import ToolCore
     pause()
     item = nil
     subviews.forEach { $0.removeFromSuperview() }
-    let grid = NSHostingView(rootView: ToolboxGrid { [weak self] in self?.open($0) })
+    let grid = NSHostingView(
+      rootView: ToolboxGrid { [weak self] item in
+        guard let self else { return }
+        if let onOpen = self.onOpen { onOpen(item) } else { self.open(item) }
+      })
     Theme.pin(grid, to: self)
   }
   func open(_ item: ToolboxItem) {
@@ -139,7 +145,7 @@ import ToolCore
         ? "数字时间戳，单位见所选模式" : "ISO 8601，必须包含时区，例如 2026-11-21T08:00:00+08:00"
     }
   }
-  @objc private func back() { showGrid() }
+  @objc private func back() { if let onGrid { onGrid() } else { showGrid() } }
   @objc private func cancel() {
     pause()
     status.stringValue = "已取消本地计算"

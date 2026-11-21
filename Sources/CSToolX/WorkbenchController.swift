@@ -24,6 +24,15 @@ final class WorkbenchController: NSWindowController {
   private var browserNodeID: String?
   private var discoveryProfiles: [String: ConnectionProfile] = [:]
   private var selectedProfile: UUID?
+  private enum Page: Equatable {
+    case home
+    case module(ToolModule)
+    case tool(String)
+  }
+  private var history = NavigationHistory<Page>(.home)
+  private var backButton: PaperIconButton!
+  private var forwardButton: PaperIconButton!
+  private var toolboxPages: [String: ToolboxWorkspace] = [:]
   private var selectedModule: ToolModule?
   private var shellModel: Workspace?
   private var shellHost: NSHostingView<WorkspaceView>?
@@ -53,15 +62,23 @@ final class WorkbenchController: NSWindowController {
     root.wantsLayer = true
     root.layer?.backgroundColor = Theme.paper.cgColor
     window.contentView = root
-    let back = PaperIconButton(
-      symbol: "chevron.left", label: "返回首页", target: self, action: #selector(goHome))
-    back.setAccessibilityLabel("返回首页")
-    back.toolTip = "返回首页 ⌘1"
+    let home = PaperIconButton(
+      symbol: "square.grid.2x2", label: "首页", target: self, action: #selector(goHome))
+    home.toolTip = "首页 ⌘1"
+    backButton = PaperIconButton(
+      symbol: "chevron.left", label: "后退", target: self, action: #selector(goBack))
+    forwardButton = PaperIconButton(
+      symbol: "chevron.right", label: "前进", target: self, action: #selector(goForward))
+    backButton.toolTip = "后退 ⌘[ · 鼠标侧键"
+    forwardButton.toolTip = "前进 ⌘] · 鼠标侧键"
+    let navigationSpace = NSView()
+    navigationSpace.widthAnchor.constraint(equalToConstant: 112).isActive = true
     let update = PaperIconButton(
       symbol: "arrow.down.circle", label: "检查更新", target: self, action: #selector(checkUpdates))
     update.setAccessibilityLabel("检查更新")
     update.toolTip = "检查更新"
-    header = Theme.stack([back, title, NSView(), update], vertical: false, spacing: 12)
+    header = Theme.stack(
+      [navigationSpace, title, NSView(), update], vertical: false, spacing: 12)
     header.edgeInsets = NSEdgeInsets(top: 8, left: 20, bottom: 8, right: 20)
     headerHeight = header.heightAnchor.constraint(equalToConstant: 43)
     headerHeight.isActive = true
@@ -79,6 +96,18 @@ final class WorkbenchController: NSWindowController {
       body.bottomAnchor.constraint(equalTo: root.bottomAnchor),
     ])
     root.installDragRegion()
+    let navigation = Theme.stack([backButton!, forwardButton!, home], vertical: false, spacing: 8)
+    navigation.translatesAutoresizingMaskIntoConstraints = false
+    root.addSubview(navigation)
+    NSLayoutConstraint.activate([
+      navigation.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 20),
+      navigation.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
+    ])
+    window.onNavigate = { [weak self] forward in
+      guard let self, self.canNavigate else { return false }
+      if forward { self.goForward() } else { self.goBack() }
+      return true
+    }
     prepareDataModule()
     navigator.onSelect = { [weak self] node in self?.selectedTreeNode(node) }
     navigator.onExpand = { [weak self] node in self?.expandedTreeNode(node) }
@@ -112,12 +141,15 @@ final class WorkbenchController: NSWindowController {
     let context = NSView()
     context.wantsLayer = true
     context.layer?.backgroundColor = Theme.sidebar.cgColor
-    let add = PaperIconButton(symbol: "plus", label: "新建数据连接", target: self, action: #selector(newConnection))
+    let add = PaperIconButton(
+      symbol: "plus", label: "新建数据连接", target: self, action: #selector(newConnection))
     add.toolTip = "新建数据连接"
     connectionPicker.setAccessibilityLabel("切换数据连接")
     connectionPicker.onChange(target: self, action: #selector(selectConnection))
     connectionPicker.widthAnchor.constraint(greaterThanOrEqualToConstant: 210).isActive = true
-    let menu = PaperIconButton(symbol: "ellipsis", label: "连接设置与会话管理", target: self, action: #selector(connectionActions(_:)))
+    let menu = PaperIconButton(
+      symbol: "ellipsis", label: "连接设置与会话管理", target: self, action: #selector(connectionActions(_:))
+    )
     menu.toolTip = "连接设置与会话管理"
     let heading = Theme.stack([connectionPicker, NSView(), add, menu], vertical: false, spacing: 6)
     let side = Theme.stack(
@@ -152,7 +184,41 @@ final class WorkbenchController: NSWindowController {
     container.subviews.forEach { $0.removeFromSuperview() }
     Theme.pin(view, to: container)
   }
+  var canGoBack: Bool { canNavigate && history.canGoBack }
+  var canGoForward: Bool { canNavigate && history.canGoForward }
+  private var canNavigate: Bool {
+    guard window?.attachedSheet == nil, NSApp.modalWindow == nil else { return false }
+    if let editor = window?.firstResponder as? NSTextView, editor.hasMarkedText() { return false }
+    return true
+  }
+  @objc func goBack() {
+    guard canNavigate, let page = history.back() else { return }
+    render(page)
+  }
+  @objc func goForward() {
+    guard canNavigate, let page = history.forward() else { return }
+    render(page)
+  }
+  private func navigate(_ page: Page) {
+    guard canNavigate else { return }
+    guard history.visit(page) else { return }
+    render(page)
+  }
+  private func render(_ page: Page) {
+    window?.makeFirstResponder(nil)
+    switch page {
+    case .home: renderHome()
+    case .module(let module): renderModule(module)
+    case .tool(let id): renderModule(.utilities, toolID: id)
+    }
+    backButton.isEnabled = history.canGoBack
+    forwardButton.isEnabled = history.canGoForward
+    backButton.superview?.isHidden = page == .home && !history.canGoBack && !history.canGoForward
+  }
   @objc func goHome() {
+    if history.current == .home { render(.home) } else { navigate(.home) }
+  }
+  private func renderHome() {
     gitView?.pause()
     toolboxView?.pause()
     textWorkspace?.pause()
@@ -165,7 +231,8 @@ final class WorkbenchController: NSWindowController {
     }
     display(homeHost!, in: body)
   }
-  private func showModule(_ module: ToolModule) {
+  private func showModule(_ module: ToolModule) { navigate(.module(module)) }
+  private func renderModule(_ module: ToolModule, toolID: String? = nil) {
     if module != .git { gitView?.pause() }
     if module != .utilities { toolboxView?.pause() }
     if module != .text { textWorkspace?.pause() }
@@ -202,7 +269,18 @@ final class WorkbenchController: NSWindowController {
       display(textWorkspace!, in: body)
       textWorkspace?.activate()
     case .utilities:
-      if toolboxView == nil { toolboxView = ToolboxWorkspace(frame: .zero) }
+      toolboxView?.pause()
+      let key = toolID ?? ""
+      if toolboxPages[key] == nil {
+        let view = ToolboxWorkspace(frame: .zero)
+        view.onOpen = { [weak self] item in self?.navigate(.tool(item.id)) }
+        view.onGrid = { [weak self] in self?.showModule(.utilities) }
+        if let toolID, let item = Toolbox.items.first(where: { $0.id == toolID }) {
+          view.open(item)
+        }
+        toolboxPages[key] = view
+      }
+      toolboxView = toolboxPages[key]
       display(toolboxView!, in: body)
     case .files:
       if fileView == nil { fileView = TerminalWorkspace(sftp: true) }
@@ -284,7 +362,7 @@ final class WorkbenchController: NSWindowController {
     let view = NSView()
     let stack = Theme.stack(
       [
-        Theme.button("新建连接", target: self, action: #selector(newConnection), primary: true),
+        Theme.button("新建连接", target: self, action: #selector(newConnection), primary: true)
       ], spacing: 24)
     stack.translatesAutoresizingMaskIntoConstraints = false
     view.addSubview(stack)
@@ -406,7 +484,9 @@ final class WorkbenchController: NSWindowController {
       else { return }
       if index == 1 || index == 2 {
         guard var node = navigator.selectedNode ?? navigator.root(id) else { return }
-        if index == 2, !node.expandable, let parentID = node.parentID, let parent = navigator.node(parentID) {
+        if index == 2, !node.expandable, let parentID = node.parentID,
+          let parent = navigator.node(parentID)
+        {
           node = parent
         }
         openNode(node, query: index == 1, presents: index == 1)
