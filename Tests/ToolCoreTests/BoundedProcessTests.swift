@@ -5,6 +5,14 @@ import XCTest
 @testable import ToolCore
 
 final class BoundedProcessTests: XCTestCase {
+  func testClosedInputPipeDoesNotTerminateParent() async throws {
+    let previous = signal(SIGPIPE, SIG_DFL)
+    defer { signal(SIGPIPE, previous) }
+    let result = try await BoundedProcess.run(
+      executable: URL(fileURLWithPath: "/usr/bin/true"), arguments: [],
+      input: Data(repeating: 65, count: 128 * 1024), timeout: 3)
+    XCTAssertEqual(result.exitCode, 0)
+  }
   func testConcurrentOutputDrainAndCombinedBudget() async throws {
     let result = try await BoundedProcess.run(
       executable: URL(fileURLWithPath: "/bin/sh"),

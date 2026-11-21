@@ -28,6 +28,7 @@ final class WorkbenchController: NSWindowController {
   private var shellModel: Workspace?
   private var shellHost: NSHostingView<WorkspaceView>?
   private var gitView: GitWorkspace?
+  private var toolboxView: ToolboxWorkspace?
   private var fileView: TerminalWorkspace?
   private var sftpSheet: NSWindow?
   private var homeHost: NSHostingView<LauncherView>?
@@ -152,6 +153,7 @@ final class WorkbenchController: NSWindowController {
   }
   @objc func goHome() {
     gitView?.pause()
+    toolboxView?.pause()
     openGate.navigate()
     selectedModule = nil
     header.isHidden = true
@@ -163,6 +165,7 @@ final class WorkbenchController: NSWindowController {
   }
   private func showModule(_ module: ToolModule) {
     if module != .git { gitView?.pause() }
+    if module != .utilities { toolboxView?.pause() }
     openGate.navigate()
     selectedModule = module
     header.isHidden = false
@@ -191,6 +194,9 @@ final class WorkbenchController: NSWindowController {
       if gitView == nil { gitView = GitWorkspace(frame: .zero) }
       display(gitView!, in: body)
       gitView?.activate()
+    case .utilities:
+      if toolboxView == nil { toolboxView = ToolboxWorkspace(frame: .zero) }
+      display(toolboxView!, in: body)
     case .files:
       if fileView == nil { fileView = TerminalWorkspace(sftp: true) }
       display(fileView!, in: body)
@@ -462,6 +468,7 @@ final class WorkbenchController: NSWindowController {
   }
   func stopAll() {
     gitView?.stop()
+    toolboxView?.pause()
     openTasks.values.forEach { $0.cancel() }
     openTasks.removeAll()
     openGate.clear()

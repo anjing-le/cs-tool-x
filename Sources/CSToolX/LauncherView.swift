@@ -17,7 +17,7 @@ import ToolCore
       let directory = directory
       loading = Task.detached(priority: .userInitiated) {
         var result: [String: CGImage] = [:]
-        for key in ["shell", "data", "git"] {
+        for key in ["shell", "data", "git", "toolbox"] {
           guard let url = directory?.appendingPathComponent(key + ".png"),
             let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 8 * 1024 * 1024,
             let source = CGImageSourceCreateWithURL(url as CFURL, nil),
@@ -51,11 +51,7 @@ import ToolCore
   }
   var body: some View {
     GeometryReader { geometry in
-      // Keep the upper row no taller than any fitted illustration, so no horizontal bands appear.
-      let naturalHeight = artwork.images.values.map {
-        geometry.size.width / 3 * CGFloat($0.height) / CGFloat($0.width)
-      }.min() ?? geometry.size.width / 2
-      let upperHeight = min(geometry.size.height * 0.8, naturalHeight)
+      let upperHeight: CGFloat = geometry.size.height * 0.6
       let upperSize = CGSize(width: geometry.size.width, height: upperHeight)
       VStack(spacing: 0) {
         HStack(spacing: 0) {
@@ -63,10 +59,8 @@ import ToolCore
           entrance("data", name: "数据", label: "数据：MySQL、PostgreSQL、Redis 与 Elasticsearch", color: Color(red: 0.75, green: 0.83, blue: 0.86), module: .data, size: upperSize)
           entrance("git", name: "Git", label: "Git：仓库、分支与提交历史", color: Color(red: 0.75, green: 0.80, blue: 0.61), module: .git, size: upperSize)
         }
-        // The fourth region is deliberately empty until a real module is chosen.
-        Color(red: 0.90, green: 0.92, blue: 0.86)
-          .frame(width: geometry.size.width, height: max(0, geometry.size.height - upperHeight))
-          .accessibilityHidden(true)
+        IllustratedEntrance(name: "百宝箱", label: "百宝箱：离线小工具", image: artwork.images["toolbox"], color: Color(red: 0.90, green: 0.92, blue: 0.86)) { enter(.utilities) }
+          .frame(width: geometry.size.width, height: max(0, geometry.size.height - upperHeight)).clipped()
       }
 
     }
@@ -102,7 +96,7 @@ import ToolCore
           color
           if let image {
             Image(decorative: image, scale: 1)
-              .resizable().scaledToFit()
+              .resizable().scaledToFill()
               .frame(width: geometry.size.width, height: geometry.size.height)
           }
           Color.black.opacity(hovered || focused ? 0.045 : 0)

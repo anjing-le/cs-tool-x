@@ -31,6 +31,7 @@ jobs:
           swift build --disable-keychain --force-resolved-versions --product cs-tool-x
           python3 tools/cli-regression.py --binary "$(swift build --disable-keychain --force-resolved-versions --show-bin-path)/cs-tool-x"
           python3 tools/cli-installer-regression.py
+          python3 tools/toolbox-regression.py --binary .build/debug/cs-tool-x
       - name: Cursor ownership regression
         run: |
           mkdir -p .local
@@ -55,5 +56,10 @@ jobs:
         run: |
           swiftc -parse-as-library -I .build/debug/Modules Sources/CSToolX/Theme.swift Sources/CSToolX/PaperControls.swift Sources/CSToolX/WorkbenchWindow.swift Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift Sources/CSToolX/LauncherView.swift .build/debug/ToolCore.build/*.o tools/launcher-ui-regression.swift -o .local/launcher-ui-regression
           python3 tools/run-ui-regression.py .local/launcher-ui-regression Resources/Entrances
+      - name: Offline toolbox layouts
+        timeout-minutes: 3
+        run: |
+          swiftc -parse-as-library -I .build/debug/Modules Sources/CSToolX/Theme.swift Sources/CSToolX/PaperControls.swift Sources/CSToolX/WorkbenchWindow.swift Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift Sources/CSToolX/ToolboxWorkspace.swift .build/debug/ToolCore.build/*.o tools/toolbox-ui-regression.swift -o .local/toolbox-ui-regression
+          python3 tools/run-ui-regression.py .local/toolbox-ui-regression
       - name: Native development bundle
         run: python3 scripts/build.py --development --configuration debug

@@ -9,7 +9,7 @@ import ToolCore
     let directory = URL(fileURLWithPath: CommandLine.arguments.count > 1 ? CommandLine.arguments[1] : "Resources/Entrances")
     let artwork = LauncherArtwork(directory: directory)
     await artwork.load()
-    precondition(artwork.images.count == 3, "All three entrance resources decode")
+    precondition(artwork.images.count == 4, "All four entrance resources decode")
     precondition(artwork.images.values.allSatisfy { max($0.width, $0.height) <= 1536 }, "Decoded image budget remains bounded")
     let cache = artwork.images["shell"]!
     await artwork.load()
@@ -27,15 +27,6 @@ import ToolCore
         let path = URL(fileURLWithPath: CommandLine.arguments[2] + "-\(width).png")
         try rep.representation(using: .png, properties: [:])!.write(to: path)
       }
-      // The entire lower row is one empty reserved region, with no continuation of the three panels.
-      let lowerColors = [0.1, 0.5, 0.9].map { fx in
-        rep.colorAt(x: Int(Double(rep.pixelsWide - 1) * fx), y: Int(Double(rep.pixelsHigh - 1) * 0.9))!.usingColorSpace(.sRGB)!
-      }
-      precondition(lowerColors.allSatisfy {
-        abs($0.redComponent - lowerColors[0].redComponent) < 0.005
-          && abs($0.greenComponent - lowerColors[0].greenComponent) < 0.005
-          && abs($0.blueComponent - lowerColors[0].blueComponent) < 0.005
-      }, "Lower row must be a single reserved region")
       // No white or transparent gutters around either row.
       for fx in [0.002, 0.332, 0.334, 0.665, 0.668, 0.998] {
         for fy in [0.002, 0.5, 0.998] {
@@ -45,6 +36,6 @@ import ToolCore
         }
       }
     }
-    print("PASS: three contained upper entrances and one empty full-width lower region at minimum, standard and wide sizes; three bounded cached illustrations; no white gutters. Offscreen rendering, not installed-window automation.")
+    print("PASS: three upper entrances at 60% and one full-width toolbox entrance at 40% at minimum, standard and wide sizes; four bounded cached illustrations; no white gutters. Offscreen rendering, not installed-window automation.")
   }
 }

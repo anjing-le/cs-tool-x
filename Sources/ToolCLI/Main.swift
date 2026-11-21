@@ -9,12 +9,13 @@ struct Root: AsyncParsableCommand {
     version: "schema-1",
     subcommands: [
       Schema.self, Doctor.self, Servers.self, Profiles.self, DataCommands.self, SSHCommands.self,
-      SFTPCommands.self, GitCommands.self,
+      SFTPCommands.self, GitCommands.self, ToolboxCommands.self,
     ])
 }
 @main struct Entry {
   static func main() async {
     signal(SIGPIPE, SIG_IGN)
+    if CommandLine.arguments == [CommandLine.arguments[0], "--toolbox-worker"] { ToolboxWorker.serve(); return }
     if let status = SSHPassword.helperExitCode() { exit(status) }
     var command: any ParsableCommand
     do { command = try Root.parseAsRoot() } catch {
@@ -88,6 +89,8 @@ struct Schema: ParsableCommand {
      "optionsPlacement":"put options after the leaf command","configuration":"shared with GUI; atomic 0600 writes, 2s lock deadline, SHA256 revision and one .backup per file",
      "secrets":"SSH plaintext stays in local config; read only with servers show --show-secrets. Database credentials can be stored explicitly in local 0600 data-credentials.json (no Keychain/backups); explicit per-command stdin fields override the saved credential as a whole.",
      "commands":[
+      {"command":"toolbox list","effect":"local metadata read","output":"id, name, glyph, modes"},
+      {"command":"toolbox run --input FILE|-","effect":"offline computation; hash file optionally reads one regular local file; no network or persistence","input":{"tool":"see toolbox list","mode":"one listed mode, defaults to first","text":"UTF-8 source; regex subject; diff original","other":"diff new text; regex ICU pattern; optional hash expected hex","replacement":"regex replace template ($1 captures)","length":"random 1..256, password minimum 4; default 24","count":"random 1..100, default 1","file":"optional hash file path"},"output":"output, detail","limits":"each string <=48KiB; encoded worker request <=128KiB; output <=384KiB; 4s then worker termination, file hash 30s; diff <=1000 lines per side; JSON depth<=128; regex pattern<=4KiB, <=500 matches, 32 capture groups, UTF-16 offsets; replacement template<=1KiB/32 references; file hash streaming 256KiB, regular file <=8GiB; MD5/SHA1 for legacy checksums only; dates use ISO8601 with timezone, UTC output; no clipboard writes"},
       {"command":"git scan DIRECTORY","effect":"local filesystem read","notes":"recursive discovery including worktrees and bare repos; skips nested .build/.swiftpm/node_modules/Pods/Carthage/.gradle/.venv/__pycache__/.cache/.local/dist/target and .git; selected root itself is included; no symlink descent; 20s / 250000 entries / 500 repositories, explicit limited flag"},
       {"command":"git refs REPOSITORY","effect":"local Git read","notes":"current branch, HEAD and local/remote/tag refs; at most 5000 refs, 20000 total refs in GUI; 4 concurrent repositories per batch, 30s batch deadline"},
       {"command":"git log REPOSITORY","effect":"local Git read","options":["--branch refs/heads/NAME","--search TEXT_OR_HASH","--author TEXT","--days 0|7|30|90|365","--offset 0..1999","--limit 1..200"],"notes":"topological history; text searches commit subjects/bodies, hash looks up exact commit, remote refs reflect last local fetch; 12s / 4MiB output"},

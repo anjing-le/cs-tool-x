@@ -64,6 +64,8 @@ private final class ProcessSession: @unchecked Sendable {
     process.standardError = err
     if input != nil {
       writer = Pipe()
+      // A cancelled child can close stdin during a write; return EPIPE rather than killing the GUI.
+      _ = fcntl(writer!.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
       process.standardInput = writer!
     } else {
       process.standardInput = FileHandle.nullDevice

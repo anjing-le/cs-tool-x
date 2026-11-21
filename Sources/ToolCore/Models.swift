@@ -9,7 +9,7 @@ public enum ToolModule: String, CaseIterable, Codable, Sendable {
     case .terminal: return "终端"
     case .files: return "文件"
     case .requests: return "接口"
-    case .utilities: return "工具"
+    case .utilities: return "百宝箱"
     }
   }
   public var symbol: String {
@@ -23,7 +23,7 @@ public enum ToolModule: String, CaseIterable, Codable, Sendable {
     }
   }
   public var available: Bool {
-    self == .data || self == .terminal || self == .files || self == .git
+    self == .data || self == .terminal || self == .files || self == .git || self == .utilities
   }
 }
 public enum DatabaseKind: String, CaseIterable, Codable, Sendable, Hashable {
