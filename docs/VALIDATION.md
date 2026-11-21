@@ -364,3 +364,5 @@ Shell 搜索新增、分组新增/更多、服务器更多和新建标签按钮�
 本地五项 Core 检查覆盖 CRLF、组合 emoji、跨块选区/编辑、80 次 Unicode 编辑与全量结果对照、旧版本拒绝及大文小改动扫描量小于 64KiB。离屏原生检查已通过输入/撤销/选区、IME、预览、暂停后替换再恢复的统计更新；8.7MB、近 32MiB 分行与 96KiB 单行编辑路径仍通过。这是组件合成检查，不代表长期内存、完整端到端延迟或正式安装验收。
 
 正式包本地检查通过：43 项 Core 测试（1 项按环境跳过）、打包 CLI 的文本统计与既有工具回归、AppKit/WebKit 组件、严格完整性签名及稳定更新身份检查；Ed25519 归档/feed 验签与篡改拒绝通过。正式安装与远端发布另行核对。
+
+[0.0.31 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/44912901343) 全项通过，源码 4820b9e70ec9f123c622d0fbeac05fa947ba783b。三个上传资产大小与 SHA-256 与最终签名文件一致；[公开 0.0.31](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.31) 的 ZIP、校验文件、appcast 和 latest feed 均经原生 URLSession 匿名逐字节复核。临时 app 与 Git fixture 已清理；当前仍为唯一正式 0.0.30 安装，四个连接及 69 份原配置归档保留，等待用户确认 OTA 后再核对新底栏实装显示。
