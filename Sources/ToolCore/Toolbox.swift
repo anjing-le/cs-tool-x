@@ -6,6 +6,7 @@ import Security
 public struct ToolboxItem: Codable, Sendable, Identifiable {
   public let id: String, name: String, glyph: String
   public let modes: [String]
+  public init(id: String, name: String, glyph: String, modes: [String]) { self.id = id; self.name = name; self.glyph = glyph; self.modes = modes }
 }
 public struct ToolboxRequest: Codable, Sendable {
   public var tool: String

@@ -9,7 +9,7 @@ struct Root: AsyncParsableCommand {
     version: "schema-1",
     subcommands: [
       Schema.self, Doctor.self, Servers.self, Profiles.self, DataCommands.self, SSHCommands.self,
-      SFTPCommands.self, GitCommands.self, ToolboxCommands.self,
+      SFTPCommands.self, GitCommands.self, ToolboxCommands.self, TextCommands.self,
     ])
 }
 @main struct Entry {
@@ -74,6 +74,7 @@ struct Doctor: AsyncParsableCommand {
         "gitExecutableAvailable": .bool(
           FileManager.default.isExecutableFile(atPath: "/usr/bin/git")),
         "headless": .bool(true),
+        "markdownWorkerAvailable": .bool(FileManager.default.isExecutableFile(atPath: options.application.appendingPathComponent("Contents/Helpers/cs-tool-markdown").path)),
       ]))
   }
 }
@@ -89,6 +90,8 @@ struct Schema: ParsableCommand {
      "optionsPlacement":"put options after the leaf command","configuration":"shared with GUI; atomic 0600 writes, 2s lock deadline, SHA256 revision and one .backup per file",
      "secrets":"SSH plaintext stays in local config; read only with servers show --show-secrets. Database credentials can be stored explicitly in local 0600 data-credentials.json (no Keychain/backups); explicit per-command stdin fields override the saved credential as a whole.",
      "commands":[
+      {"command":"text inspect FILE","effect":"read one local regular UTF-8 file, no writes or GUI session access","limits":"32MiB file / 128KiB per line / 15s worker deadline; reject binary/NUL/UTF-16; UTF-8 BOM accepted","output":"encoding, bytes, utf16Units, markdownPreviewWithinByteBudget"},
+      {"command":"text preview FILE","effect":"read local UTF-8 file, offline CommonMark/GFM HTML computation, no GUI session access or writes","limits":"input4MiB / 128KiB per line; file read15s; HTML8MiB before JSON escaping; 30000 AST nodes/256 nesting; worker deadline5s; default raw HTML/unsafe links omitted, page CSP disables external resources/scripts; only tables/tasklist/strikethrough/autolinks added, no math/diagrams","output":"html with offline page policy, externalResources=false, inputBytes"},
       {"command":"toolbox list","effect":"local metadata read","output":"id, name, glyph, modes"},
       {"command":"toolbox run --input FILE|-","effect":"offline computation; hash file optionally reads one regular local file; no network or persistence","input":{"tool":"see toolbox list","mode":"one listed mode, defaults to first","text":"UTF-8 source; regex subject; diff original","other":"diff new text; regex ICU pattern; optional hash expected hex","replacement":"regex replace template ($1 captures)","length":"random 1..256, password minimum 4; default 24","count":"random 1..100, default 1","file":"optional hash file path"},"output":"output, detail","limits":"each string <=48KiB; encoded worker request <=128KiB; output <=384KiB; 4s then worker termination, file hash 30s; diff <=1000 lines per side; JSON depth<=128; regex pattern<=4KiB, <=500 matches, 32 capture groups, UTF-16 offsets; replacement template<=1KiB/32 references; file hash streaming 256KiB, regular file <=8GiB; MD5/SHA1 for legacy checksums only; dates use ISO8601 with timezone, UTC output; no clipboard writes"},
       {"command":"git scan DIRECTORY","effect":"local filesystem read","notes":"recursive discovery including worktrees and bare repos; skips nested .build/.swiftpm/node_modules/Pods/Carthage/.gradle/.venv/__pycache__/.cache/.local/dist/target and .git; selected root itself is included; no symlink descent; 20s / 250000 entries / 500 repositories, explicit limited flag"},

@@ -62,6 +62,10 @@ struct Options: ParsableArguments {
       atPath: root.appendingPathComponent("Contents/Info.plist").path)
       ? root : URL(fileURLWithPath: "/Applications/cs-tool-x.app")
   }
+  var markdownURL: URL {
+    let adjacent = executable.deletingLastPathComponent().appendingPathComponent("cs-tool-markdown")
+    return FileManager.default.isExecutableFile(atPath: adjacent.path) ? adjacent : application.appendingPathComponent("Contents/Helpers/cs-tool-markdown")
+  }
   var engineURL: URL {
     engine.map { URL(fileURLWithPath: $0).standardizedFileURL }
       ?? application.appendingPathComponent("Contents/Helpers/cs-tool-engine")

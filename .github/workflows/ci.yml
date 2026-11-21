@@ -59,7 +59,14 @@ jobs:
       - name: Offline toolbox layouts
         timeout-minutes: 3
         run: |
-          swiftc -parse-as-library -I .build/debug/Modules Sources/CSToolX/Theme.swift Sources/CSToolX/PaperControls.swift Sources/CSToolX/WorkbenchWindow.swift Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift Sources/CSToolX/ToolboxWorkspace.swift .build/debug/ToolCore.build/*.o tools/toolbox-ui-regression.swift -o .local/toolbox-ui-regression
+          swiftc -parse-as-library -I .build/debug/Modules Sources/CSToolX/Theme.swift Sources/CSToolX/PaperControls.swift Sources/CSToolX/WorkbenchWindow.swift Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift Sources/CSToolX/ToolboxWorkspace.swift Sources/CSToolX/TransientTextEditor.swift Sources/CSToolX/TransientTextWorkspace.swift .build/debug/ToolCore.build/*.o tools/toolbox-ui-regression.swift -o .local/toolbox-ui-regression
           python3 tools/run-ui-regression.py .local/toolbox-ui-regression
+      - name: Temporary text and Markdown
+        timeout-minutes: 3
+        run: |
+          swift build --disable-keychain --force-resolved-versions --product cs-tool-markdown
+          python3 tools/text-workbench-regression.py --binary .build/debug/cs-tool-x --worker .build/debug/cs-tool-markdown
+          swiftc -parse-as-library -I .build/debug/Modules Sources/CSToolX/Theme.swift Sources/CSToolX/PaperControls.swift Sources/CSToolX/WorkbenchWindow.swift Sources/CSToolX/WritingCursors.swift Sources/CSToolX/WritingCursorPreviewTheme.swift Sources/CSToolX/WritingDragCursor.swift Sources/CSToolX/TransientTextEditor.swift Sources/CSToolX/TransientTextWorkspace.swift .build/debug/ToolCore.build/*.o tools/text-editor-ui-regression.swift -o .local/text-editor-ui-regression
+          python3 tools/run-ui-regression.py .local/text-editor-ui-regression .build/debug/cs-tool-markdown
       - name: Native development bundle
         run: python3 scripts/build.py --development --configuration debug

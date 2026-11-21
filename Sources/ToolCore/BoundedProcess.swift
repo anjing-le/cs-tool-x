@@ -12,10 +12,12 @@ public struct CommandResult: Codable, Sendable {
 public enum BoundedProcess {
   public static func run(
     executable: URL, arguments: [String], environment: [String: String]? = nil,
-    input: Data? = nil, timeout: Double = 15, maxOutputBytes: Int = 1024 * 1024
+    input: Data? = nil, timeout: Double = 15, maxOutputBytes: Int = 1024 * 1024,
+    maxInputBytes: Int = 128 * 1024
   ) async throws -> CommandResult {
-    guard timeout > 0, timeout <= 120, maxOutputBytes > 0, maxOutputBytes <= 8 * 1024 * 1024,
-      (input?.count ?? 0) <= 128 * 1024
+    guard timeout > 0, timeout <= 120, maxOutputBytes > 0, maxOutputBytes <= 32 * 1024 * 1024,
+      maxInputBytes > 0, maxInputBytes <= 4 * 1024 * 1024,
+      (input?.count ?? 0) <= maxInputBytes
     else { throw ConfigurationError.invalid }
     let session = ProcessSession(timeout: timeout, budget: maxOutputBytes)
     return try await withTaskCancellationHandler(

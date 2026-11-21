@@ -37,6 +37,7 @@ def main():
     run(['python3',ROOT/'scripts/collect-licenses.py'])
     run(['swift','build','--disable-keychain','--force-resolved-versions','-c',args.configuration,'--product','CSToolX'],cwd=ROOT)
     run(['swift','build','--disable-keychain','--force-resolved-versions','-c',args.configuration,'--product','cs-tool-x'],cwd=ROOT)
+    run(['swift','build','--disable-keychain','--force-resolved-versions','-c',args.configuration,'--product','cs-tool-markdown'],cwd=ROOT)
     bin_dir=Path(subprocess.check_output(['swift','build','--disable-keychain','--force-resolved-versions','-c',args.configuration,'--show-bin-path'],cwd=ROOT,text=True).strip())
     framework=ROOT/'.build/artifacts/sparkle/Sparkle/Sparkle.xcframework/macos-arm64_x86_64/Sparkle.framework'
     args.output.mkdir(parents=True,exist_ok=True)
@@ -46,6 +47,8 @@ def main():
     contents=app/'Contents';(contents/'MacOS').mkdir(parents=True);(contents/'Helpers').mkdir();(contents/'Resources').mkdir();(contents/'Frameworks').mkdir()
     shutil.copy2(bin_dir/'CSToolX',contents/'MacOS/CSToolX')
     shutil.copy2(bin_dir/'cs-tool-x',contents/'MacOS/cs-tool-x')
+    shutil.copy2(bin_dir/'cs-tool-markdown',contents/'Helpers/cs-tool-markdown')
+    shutil.copy2(ROOT/'.build/checkouts/swift-cmark/COPYING',contents/'Resources/cmark-LICENSE.txt')
     shutil.copy2(ROOT/'.build/checkouts/swift-argument-parser/LICENSE.txt',contents/'Resources/ArgumentParser-LICENSE.txt')
     shutil.copy2(ROOT/'engine/target'/args.configuration/'cs-tool-engine',contents/'Helpers/cs-tool-engine')
     run(['/usr/bin/ditto',framework,contents/'Frameworks/Sparkle.framework'])
@@ -72,6 +75,7 @@ def main():
     components=list((fw/'Versions/Current/XPCServices').glob('*.xpc'))+[fw/'Versions/Current/Updater.app',fw/'Versions/Current/Autoupdate',fw]
     for component in components: run(['/usr/bin/codesign',*common,'--preserve-metadata=identifier,entitlements',component])
     run(['/usr/bin/codesign',*common,'--identifier',bundle_id+'.engine',contents/'Helpers/cs-tool-engine'])
+    run(['/usr/bin/codesign',*common,'--identifier',bundle_id+'.markdown',contents/'Helpers/cs-tool-markdown'])
     run(['/usr/bin/codesign',*common,'--identifier',bundle_id+'.cli',contents/'MacOS/cs-tool-x'])
     run(['/usr/bin/codesign',*common,'--identifier',bundle_id,app])
     run(['/usr/bin/codesign','--verify','--deep','--strict',app])
