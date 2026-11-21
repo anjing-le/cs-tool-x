@@ -319,3 +319,8 @@ Shell 搜索新增、分组新增/更多、服务器更多和新建标签按钮�
 十项离线工具通过共享 ToolCore 接入原生界面和 CLI；卡片默认图示，悬停/键盘焦点显示名称，双层淡入/位移、280ms，保留减少动态效果和自定义光标。输入/结果只在当前内存工作区，离开取消进程并清除随机输出；复制只由用户操作触发。
 
 本轮 Core 测试五项及 CLI 每个模式已通过，含 Unicode、SRT 数字对白、带时区时间、JSON 深度、随机密码字符、文件 Hash。CLI 实测 8 MiB 校验一致、FIFO 拒绝、病态正则超时终止及后续计算恢复。原生离屏渲染与正式安装后的界面验收分开，OTA 安装和实际指针悬停尚待最终正式包核对；没有新数据库或远端写入验证，也未声称冷启动/长期内存指标达标。
+
+
+[0.0.28 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/44901475833) 全项通过，源码 f0489c004c3585121caafcee650073a4bfff3a96。本地另外通过子进程提前关闭输入管道、父进程保留默认 SIGPIPE 行为的回归，最终正式包已重新构建并通过百宝箱全部模式与病态正则检查。
+
+[0.0.28](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.28) 已发布：三个上传资产的 SHA-256 与本地签名文件一致，匿名下载 ZIP/校验文件/appcast 和 latest feed 均与最终文件逐字节一致，归档/feed 验签及篡改负例通过。临时 `.app` 已移入废纸篓；检查 Applications、用户 Applications、project、Desktop、Downloads、Documents 根目录，仅发现 `/Applications/cs-tool-x.app` 一个正式客户端。当前仍是待用户确认 OTA 安装，不把离屏布局检查写成正式安装验收。
