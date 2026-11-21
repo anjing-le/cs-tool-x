@@ -374,3 +374,5 @@ Shell 搜索新增、分组新增/更多、服务器更多和新建标签按钮�
 用户已明确授权迭代后直接操作既有客户端 OTA 安装/重启，更新项目约定，后续不再例行要求用户点击安装。旧 0.0.31 正式客户端本轮已看到重启后的主窗口。
 
 本地正式包通过 45 项 Core 测试（1 项按环境跳过），含历史上限/遍历/新分支；窗口合成事件检查通过侧键按下/抬起只执行一次、Command 括号、长按抑制、CapsLock 和 Shift 标签快捷键隔离、普通中键不拦截。它不证明实体鼠标驱动兼容。现有 CLI、数据树、Git、首页、百宝箱、临时文本/Markdown 回归及归档/feed 签名与篡改负例均通过。待远端 CI、公开包和正式安装导航实测。
+
+[0.0.32 CI](https://github.com/anjing-le/cs-tool-x/actions/runs/44918893676) 全项通过，源码 385ea046b3b92c83378a65984f4ef22815d90ced。三个草稿资产大小/SHA-256 与最终签名文件一致；[公开 0.0.32](https://github.com/anjing-le/cs-tool-x/releases/tag/v0.0.32) 的 ZIP、校验文件、appcast 与 latest feed 经原生 URLSession 匿名逐字节核对。临时构建 app 与 Git fixture 已清理，正式安装检查另列。
