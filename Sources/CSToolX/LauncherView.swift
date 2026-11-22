@@ -55,12 +55,12 @@ import ToolCore
       let upperSize = CGSize(width: geometry.size.width, height: upperHeight)
       VStack(spacing: 0) {
         HStack(spacing: 0) {
-          entrance("shell", name: "Shell", label: "Shell：终端与文件传输", color: Color(red: 0.96, green: 0.82, blue: 0.55), module: .terminal, size: upperSize)
-          entrance("data", name: "数据", label: "数据：MySQL、PostgreSQL、Redis 与 Elasticsearch", color: Color(red: 0.75, green: 0.83, blue: 0.86), module: .data, size: upperSize)
-          entrance("git", name: "Git", label: "Git：仓库、分支与提交历史", color: Color(red: 0.75, green: 0.80, blue: 0.61), module: .git, size: upperSize)
-          entrance("text", name: "临时文本", label: "临时文本：写作与 Markdown 预览", color: Color(red: 0.91, green: 0.81, blue: 0.75), module: .text, size: upperSize)
+          entrance("shell", label: "Shell：终端与文件传输", color: Color(red: 0.96, green: 0.82, blue: 0.55), module: .terminal, size: upperSize)
+          entrance("data", label: "数据：MySQL、PostgreSQL、Redis 与 Elasticsearch", color: Color(red: 0.75, green: 0.83, blue: 0.86), module: .data, size: upperSize)
+          entrance("git", label: "Git：仓库、分支与提交历史", color: Color(red: 0.75, green: 0.80, blue: 0.61), module: .git, size: upperSize)
+          entrance("text", label: "临时文本：写作与 Markdown 预览", color: Color(red: 0.91, green: 0.81, blue: 0.75), module: .text, size: upperSize)
         }
-        IllustratedEntrance(name: "百宝箱", label: "百宝箱：离线小工具", image: artwork.images["toolbox"], color: Color(red: 0.90, green: 0.92, blue: 0.86)) { enter(.utilities) }
+        IllustratedEntrance(label: "百宝箱：离线小工具", image: artwork.images["toolbox"], color: Color(red: 0.90, green: 0.92, blue: 0.86)) { enter(.utilities) }
           .frame(width: geometry.size.width, height: max(0, geometry.size.height - upperHeight)).clipped()
       }
 
@@ -72,15 +72,15 @@ import ToolCore
     .accessibilityElement(children: .contain)
     .accessibilityLabel("工具入口")
   }
-  private func entrance(_ key: String, name: String, label: String, color: Color, module: ToolModule, size: CGSize) -> some View {
-    IllustratedEntrance(name: name, label: label, image: artwork.images[key], color: color) {
+  private func entrance(_ key: String, label: String, color: Color, module: ToolModule, size: CGSize) -> some View {
+    IllustratedEntrance(label: label, image: artwork.images[key], color: color) {
       enter(module)
     }.frame(width: size.width / 4, height: size.height).clipped()
   }
 }
 
 @MainActor private struct IllustratedEntrance: View {
-  let name: String, label: String
+  let label: String
   let image: CGImage?
   let color: Color
   let action: () -> Void
@@ -101,13 +101,6 @@ import ToolCore
               .frame(width: geometry.size.width, height: geometry.size.height)
           }
           Color.black.opacity(hovered || focused ? 0.045 : 0)
-          if hovered || focused || image == nil {
-            Text(name)
-              .font(Font(Theme.font(20, weight: .medium)))
-              .foregroundStyle(Color(nsColor: Theme.ink))
-              .padding(.leading, 26).padding(.bottom, 30)
-              .accessibilityHidden(true)
-          }
           if focused {
             Rectangle().fill(Color(nsColor: Theme.sage)).frame(height: 3).accessibilityHidden(true)
           }
