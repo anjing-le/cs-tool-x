@@ -73,21 +73,26 @@ import ToolCore
         let path = URL(fileURLWithPath: CommandLine.arguments[2] + "-\(width).png")
         try rep.representation(using: .png, properties: [:])!.write(to: path)
       }
-      // No white or transparent gutters around either row.
-      for fx in [0.002, 0.249, 0.251, 0.499, 0.501, 0.749, 0.751, 0.998] {
-        for fy in [0.002, 0.5, 0.998] {
-          let color = rep.colorAt(
-            x: Int(Double(rep.pixelsWide - 1) * fx), y: Int(Double(rep.pixelsHigh - 1) * fy))!
-            .usingColorSpace(.sRGB)!
-          precondition(color.alphaComponent > 0.99, "No transparent panel gap")
-          precondition(
-            min(color.redComponent, color.greenComponent, color.blueComponent) < 0.96,
-            "No white card gutter or margin")
-        }
+      // Narrow paper gutters separate the rounded cards; artwork remains opaque.
+      func sample(_ x: Double, _ y: Double) -> NSColor {
+        rep.colorAt(x: Int(x / Double(width) * Double(rep.pixelsWide)),
+          y: Int(y / Double(height) * Double(rep.pixelsHigh)))!.usingColorSpace(.sRGB)!
       }
+      let paper = Theme.paper.usingColorSpace(.sRGB)!
+      for (x, y) in [(2.0, 2.0), (Double(width) / 2, 30.0), (8.5, 8.5)] {
+        let color = sample(x, y)
+        precondition(color.alphaComponent > 0.99, "Opaque paper background")
+        precondition(abs(color.redComponent - paper.redComponent) < 0.025 &&
+          abs(color.greenComponent - paper.greenComponent) < 0.025 &&
+          abs(color.blueComponent - paper.blueComponent) < 0.025,
+          "Outer inset, rounded corner and inter-card gap reveal warm paper")
+      }
+      let image = sample(Double(width) / 8, 40)
+      precondition(image.alphaComponent > 0.99 && min(image.redComponent, image.greenComponent, image.blueComponent) < 0.96,
+        "Card interior retains illustration")
     }
     print(
-      "PASS: four independent upper entrances with responsive height and one full-width toolbox entrance at minimum, standard and wide sizes; five bounded cached illustrations; no white gutters. Offscreen rendering, not installed-window automation."
+      "PASS: four independent upper entrances with responsive height and one full-width toolbox entrance at minimum, standard and wide sizes; five bounded cached illustrations; rounded outlined cards with narrow paper gutters. Offscreen rendering, not installed-window automation."
     )
   }
 }

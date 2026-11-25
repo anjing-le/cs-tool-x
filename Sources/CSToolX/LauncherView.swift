@@ -51,18 +51,21 @@ import ToolCore
   }
   var body: some View {
     GeometryReader { geometry in
-      let upperHeight: CGFloat = min(geometry.size.height * 0.6, geometry.size.width / 4 / 0.72)
-      let upperSize = CGSize(width: geometry.size.width, height: upperHeight)
-      VStack(spacing: 0) {
-        HStack(spacing: 0) {
+      let width = max(0, geometry.size.width - 16)
+      let height = max(0, geometry.size.height - 24)
+      let cardWidth = max(0, (width - 24) / 4)
+      let upperHeight: CGFloat = min(height * 0.6, cardWidth / 0.72)
+      let upperSize = CGSize(width: cardWidth, height: upperHeight)
+      VStack(spacing: 8) {
+        HStack(spacing: 8) {
           entrance("shell", label: "Shell：终端与文件传输", color: Color(red: 0.96, green: 0.82, blue: 0.55), module: .terminal, size: upperSize)
           entrance("data", label: "数据：MySQL、PostgreSQL、Redis 与 Elasticsearch", color: Color(red: 0.75, green: 0.83, blue: 0.86), module: .data, size: upperSize)
           entrance("git", label: "Git：仓库、分支与提交历史", color: Color(red: 0.75, green: 0.80, blue: 0.61), module: .git, size: upperSize)
           entrance("text", label: "临时文本：写作与 Markdown 预览", color: Color(red: 0.91, green: 0.81, blue: 0.75), module: .text, size: upperSize)
         }
         IllustratedEntrance(label: "百宝箱：离线小工具", image: artwork.images["toolbox"], color: Color(red: 0.90, green: 0.92, blue: 0.86)) { enter(.utilities) }
-          .frame(width: geometry.size.width, height: max(0, geometry.size.height - upperHeight)).clipped()
-      }
+          .frame(width: width, height: max(0, height - upperHeight))
+      }.padding(8)
 
     }
     .background(Color(nsColor: Theme.paper))
@@ -75,7 +78,7 @@ import ToolCore
   private func entrance(_ key: String, label: String, color: Color, module: ToolModule, size: CGSize) -> some View {
     IllustratedEntrance(label: label, image: artwork.images[key], color: color) {
       enter(module)
-    }.frame(width: size.width / 4, height: size.height).clipped()
+    }.frame(width: size.width, height: size.height)
   }
 }
 
@@ -105,7 +108,13 @@ import ToolCore
             Rectangle().fill(Color(nsColor: Theme.sage)).frame(height: 3).accessibilityHidden(true)
           }
         }.frame(width: geometry.size.width, height: geometry.size.height)
-          .clipped().contentShape(Rectangle())
+          .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+          .overlay {
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+              .strokeBorder(Color(nsColor: Theme.ink).opacity(focused ? 0.55 : 0.18), lineWidth: focused ? 2 : 1)
+              .accessibilityHidden(true)
+          }
+          .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
       }
     }
     .buttonStyle(.plain).writingCursor(.clickable).focused($focused)
