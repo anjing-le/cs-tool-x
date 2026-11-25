@@ -30,8 +30,6 @@ final class WorkbenchController: NSWindowController {
     case tool(String)
   }
   private var history = NavigationHistory<Page>(.home)
-  private var backButton: PaperIconButton!
-  private var forwardButton: PaperIconButton!
   private var toolboxPages: [String: ToolboxWorkspace] = [:]
   private var selectedModule: ToolModule?
   private var shellModel: Workspace?
@@ -62,23 +60,12 @@ final class WorkbenchController: NSWindowController {
     root.wantsLayer = true
     root.layer?.backgroundColor = Theme.paper.cgColor
     window.contentView = root
-    let home = PaperIconButton(
-      symbol: "square.grid.2x2", label: "首页", target: self, action: #selector(goHome))
-    home.toolTip = "首页 ⌘1"
-    backButton = PaperIconButton(
-      symbol: "chevron.left", label: "后退", target: self, action: #selector(goBack))
-    forwardButton = PaperIconButton(
-      symbol: "chevron.right", label: "前进", target: self, action: #selector(goForward))
-    backButton.toolTip = "后退 ⌘[ · 鼠标侧键"
-    forwardButton.toolTip = "前进 ⌘] · 鼠标侧键"
-    let navigationSpace = NSView()
-    navigationSpace.widthAnchor.constraint(equalToConstant: 112).isActive = true
     let update = PaperIconButton(
       symbol: "arrow.down.circle", label: "检查更新", target: self, action: #selector(checkUpdates))
     update.setAccessibilityLabel("检查更新")
     update.toolTip = "检查更新"
     header = Theme.stack(
-      [navigationSpace, title, NSView(), update], vertical: false, spacing: 12)
+      [title, NSView(), update], vertical: false, spacing: 12)
     header.edgeInsets = NSEdgeInsets(top: 8, left: 20, bottom: 8, right: 20)
     headerHeight = header.heightAnchor.constraint(equalToConstant: 43)
     headerHeight.isActive = true
@@ -96,13 +83,6 @@ final class WorkbenchController: NSWindowController {
       body.bottomAnchor.constraint(equalTo: root.bottomAnchor),
     ])
     root.installDragRegion()
-    let navigation = Theme.stack([backButton!, forwardButton!, home], vertical: false, spacing: 8)
-    navigation.translatesAutoresizingMaskIntoConstraints = false
-    root.addSubview(navigation)
-    NSLayoutConstraint.activate([
-      navigation.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 20),
-      navigation.topAnchor.constraint(equalTo: root.topAnchor, constant: 8),
-    ])
     window.onNavigate = { [weak self] forward in
       guard let self, self.canNavigate else { return false }
       if forward { self.goForward() } else { self.goBack() }
@@ -211,9 +191,6 @@ final class WorkbenchController: NSWindowController {
     case .module(let module): renderModule(module)
     case .tool(let id): renderModule(.utilities, toolID: id)
     }
-    backButton.isEnabled = history.canGoBack
-    forwardButton.isEnabled = history.canGoForward
-    backButton.superview?.isHidden = page == .home && !history.canGoBack && !history.canGoForward
   }
   @objc func goHome() {
     if history.current == .home { render(.home) } else { navigate(.home) }
