@@ -54,7 +54,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
       ("前进", #selector(forward), "]", NSEvent.ModifierFlags.command),
       ("首页", #selector(home), "1", NSEvent.ModifierFlags.command),
       ("新建终端标签", #selector(newTab), "t", .command),
-      ("关闭标签或窗口", #selector(closeTab), "w", .command),
+      ("关闭窗口", #selector(closeWindow), "w", .command),
       ("左右分屏", #selector(splitHorizontal), "d", .command),
       ("上下分屏", #selector(splitVertical), "d", [.command, .shift]),
       ("上一个标签", #selector(previousTab), "[", [.command, .shift]),
@@ -86,7 +86,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
           return nil
         }
         if event.keyCode == 13 {
-          self.workbench?.closeShellTab()
+          window.performClose(nil)
           return nil
         }
         if event.keyCode == 46 {
@@ -129,13 +129,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValidation {
   }
   @objc private func back() { workbench?.goBack() }
   @objc private func forward() { workbench?.goForward() }
-  @objc private func closeTab() { workbench?.closeShellTab() }
+  @objc private func closeWindow() { NSApp.keyWindow?.performClose(nil) }
   @objc private func splitHorizontal() { workbench?.splitShell(vertical: false) }
   @objc private func splitVertical() { workbench?.splitShell(vertical: true) }
   @objc private func previousTab() { workbench?.cycleShell(-1) }
   @objc private func nextTab() { workbench?.cycleShell(1) }
   @objc private func about() { NSApp.orderFrontStandardAboutPanel(nil) }
-  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+  func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+  func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows _: Bool) -> Bool {
+    guard let workbench, let window = workbench.window else { return true }
+    if window.isMiniaturized { window.deminiaturize(nil) }
+    workbench.showWindow(nil)
+    window.makeKeyAndOrderFront(nil)
+    return true
+  }
   func applicationWillTerminate(_ notification: Notification) { workbench?.stopAll() }
 }
 @main

@@ -503,13 +503,6 @@ final class WorkbenchController: NSWindowController {
     showModule(.terminal)
     shellModel?.newTab()
   }
-  func closeShellTab() {
-    if selectedModule == .terminal, let id = shellModel?.selected {
-      shellModel?.close(id)
-    } else {
-      window?.performClose(nil)
-    }
-  }
   func splitShell(vertical: Bool) {
     guard selectedModule == .terminal else { return }
     shellModel?.active?.split(vertical: vertical)
