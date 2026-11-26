@@ -45,6 +45,7 @@ final class WorkbenchController: NSWindowController {
   private let body = NSView()
   private let dataContent = DataContentHost()
   private let dataRoot = NSView()
+  private var backButton: PaperIconButton!
   private var header: NSStackView!
   private var headerHeight: NSLayoutConstraint!
   private let title = Theme.label("", size: 11, muted: true)
@@ -60,12 +61,15 @@ final class WorkbenchController: NSWindowController {
     root.wantsLayer = true
     root.layer?.backgroundColor = Theme.paper.cgColor
     window.contentView = root
+    backButton = PaperIconButton(
+      symbol: "chevron.left", label: "返回", target: self, action: #selector(goBack))
+    backButton.toolTip = "返回上一页 ⌘["
     let update = PaperIconButton(
       symbol: "arrow.down.circle", label: "检查更新", target: self, action: #selector(checkUpdates))
     update.setAccessibilityLabel("检查更新")
     update.toolTip = "检查更新"
     header = Theme.stack(
-      [title, NSView(), update], vertical: false, spacing: 12)
+      [backButton!, title, NSView(), update], vertical: false, spacing: 12)
     header.edgeInsets = NSEdgeInsets(top: 8, left: 20, bottom: 8, right: 20)
     headerHeight = header.heightAnchor.constraint(equalToConstant: 43)
     headerHeight.isActive = true
@@ -191,6 +195,7 @@ final class WorkbenchController: NSWindowController {
     case .module(let module): renderModule(module)
     case .tool(let id): renderModule(.utilities, toolID: id)
     }
+    backButton.isEnabled = history.canGoBack
   }
   @objc func goHome() {
     if history.current == .home { render(.home) } else { navigate(.home) }
