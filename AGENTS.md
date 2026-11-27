@@ -24,6 +24,8 @@
 
 - 运行中 Dock 必须在主线程启动回调中把原始透明 DockIcon.png 设为 NSApp.applicationIconImage；构建从生产 PNG 原样复制，不只配置 ICNS。PNG/ICNS alpha 检查不能替代实际 Dock 显示验收。退出后固定项及 Finder 是不同显示路径，分别报告，不全局清理图标缓存或新增轮询。
 
+- macOS 27 本机退出图标采用与 FinanceX 相同的 Finder 自定义图标方式：`python3 tools/local-file-icon.py apply` 仅对 `/Applications/cs-tool-x.app` 设置安装内的 DockIcon.png。它不进入构建/ZIP/OTA，不修改 Contents 字节；会附加 FinderInfo/资源叉及 Icon\r，当前本机严格 codesign 因元数据报错不能写成通过。发布前及安装完整性复核前，先用 `python3 tools/local-file-icon.py clear` 按本机回执恢复，严格签名通过后走既有验证；每次 OTA 完成、干净安装验证通过后重新 apply。内容或元数据与回执不符须停止，不无条件剥除其他属性或重签。细节见 docs/LOCAL_ICON.md；运行中、退出入口、Finder 分别验收。仅外观维护时不虚增客户端版本、不创建第二个安装。
+
 - 长期迭代的性能/兼容契约见 docs/PERFORMANCE_COMPATIBILITY.md：驱动随引擎编译，实际版本/来源用 tools/dependency-inventory.py 从锁文件生成，构建严格锁定；不得把驱动支持等同于应用兼容。展示上限不等于接收/进程内存/服务端开销上限，超时不等于已取消。新增文件查看须按字节范围读取；tail 行数不能替代字节/时间预算。功能扩展前优先完成极端输出、大单值、取消与连接复用的隔离压测。未实测项保持未验收，不生成虚构指标或默认自动定期维护。
 
 - SSH/SFTP 明文密码使用本机用户配置与原生 askpass 辅助模式；不通过进程 argv/env 放密码，不解析终端输出猜测密码提示。保留主机指纹校验，密码助手拒绝指纹确认/私钥口令/OTP，已有密钥或交互认证的无密码配置保持原行为。SSH 与 SFTP 共用服务器配置，验证生产服务器默认只读，不顺手部署、重启或修改服务。
